@@ -7,7 +7,7 @@ dotenv.config();
 const connectDb = async () => {
     dns.setServers(['8.8.8.8', '8.8.4.4']);
     try {
-        await mongoose.connect(process.env.MONGO_URL as string);
+        await mongoose.connect(process.env.MONGO_URL as string, { dbName: 'nrapp' });
         console.log('Workschedule service connected to DB');
     } catch (error) {
         console.error('Workschedule service DB connection error:', error);

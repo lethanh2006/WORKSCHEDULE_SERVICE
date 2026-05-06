@@ -6,10 +6,15 @@ const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:5001'
 
 export const getUserProfiles = async (token: string, userIds?: string[]) => {
   try {
-    const response = await axios.post(`${USER_SERVICE_URL}/api/v1/users/bulk`, { ids: userIds }, {
+    const response = await axios.get(`${USER_SERVICE_URL}/api/user/user/all`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    
+    const allUsers = response.data.users || [];
+    if (userIds && userIds.length > 0) {
+      return allUsers.filter((u: any) => userIds.includes(u._id));
+    }
+    return allUsers;
   } catch (error) {
     console.error('Error fetching user from user service:', error);
     return null;
@@ -18,7 +23,7 @@ export const getUserProfiles = async (token: string, userIds?: string[]) => {
 
 export const getUserById = async (token: string, userId: string) => {
   try {
-    const response = await axios.get(`${USER_SERVICE_URL}/api/v1/users/${userId}`, {
+    const response = await axios.get(`${USER_SERVICE_URL}/api/user/user/${userId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     return response.data;

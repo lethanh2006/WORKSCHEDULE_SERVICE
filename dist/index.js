@@ -14,10 +14,10 @@ import policyRoutes from './routes/policy.js';
 import scheduleRoutes from './routes/schedule.js';
 import adminScheduleRoutes from './routes/adminSchedule.js';
 import attendanceRoutes from './routes/attendance.js';
-app.use("/api/v1", policyRoutes);
-app.use("/api/v1", scheduleRoutes);
-app.use("/api/v1", adminScheduleRoutes);
-app.use("/api/v1", attendanceRoutes);
+app.use("/api/workschedule", policyRoutes);
+app.use("/api/workschedule", scheduleRoutes);
+app.use("/api/workschedule", adminScheduleRoutes);
+app.use("/api/workschedule", attendanceRoutes);
 const swaggerSpec = swaggerJsdoc({
     definition: {
         openapi: '3.0.0',
