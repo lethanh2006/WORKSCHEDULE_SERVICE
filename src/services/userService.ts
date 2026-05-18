@@ -2,7 +2,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:5001';
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:5000';
 
 export const getUserProfiles = async (token: string, userIds?: string[]) => {
   try {
