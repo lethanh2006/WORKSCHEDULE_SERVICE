@@ -2,7 +2,7 @@ import { ScheduleRequest } from '../models/ScheduleRequest.js';
 import { ScheduleEntry } from '../models/ScheduleEntry.js';
 import { WorkPolicy } from '../models/WorkPolicy.js';
 import { AttendanceRecord } from '../models/AttendanceRecord.js';
-import { isMonday, parseIsoWeek, isPastDeadline, isLockedByPolicy } from '../utils/date.js';
+import { isMonday, parseIsoWeek, getWeekStartRange } from '../utils/date.js';
 import { enrichSingleWithEmployeeProfile } from '../utils/userProfileEnricher.js';
 export const getMySchedules = async (req, res) => {
     try {
@@ -11,7 +11,7 @@ export const getMySchedules = async (req, res) => {
         if (week && typeof week === 'string') {
             const matchWeek = parseIsoWeek(week);
             if (matchWeek) {
-                filter.week_start = matchWeek;
+                filter.week_start = getWeekStartRange(matchWeek);
             }
         }
         const requests = await ScheduleRequest.find(filter).sort({ week_start: -1 });
@@ -36,7 +36,7 @@ export const createRequest = async (req, res) => {
         }
         const existing = await ScheduleRequest.findOne({
             employee_id: req.user._id || req.user.id,
-            week_start: new Date(week_start)
+            week_start: getWeekStartRange(new Date(week_start))
         });
         if (existing) {
             res.status(400).json({ success: false, message: 'Schedule request for this week already exists' });
@@ -44,9 +44,12 @@ export const createRequest = async (req, res) => {
         }
         if (req.user.role !== 'admin') {
             const policy = await WorkPolicy.findOne();
-            if (policy && isLockedByPolicy(new Date(week_start), policy.lock_schedule_days)) {
-                res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
-                return;
+            if (policy) {
+                const now = new Date();
+                if (now < policy.registration_start || now > policy.registration_end) {
+                    res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
+                    return;
+                }
             }
         }
         const newRequest = await ScheduleRequest.create({
@@ -123,9 +126,12 @@ export const updateEntries = async (req, res) => {
                 return;
             }
             const policy = await WorkPolicy.findOne();
-            if (policy && isLockedByPolicy(request.week_start, policy.lock_schedule_days)) {
-                res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
-                return;
+            if (policy) {
+                const now = new Date();
+                if (now < policy.registration_start || now > policy.registration_end) {
+                    res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
+                    return;
+                }
             }
         }
         await ScheduleEntry.deleteMany({ request_id: id });
@@ -177,15 +183,14 @@ export const submitRequest = async (req, res) => {
             res.status(400).json({ success: false, message: 'Already submitted or not draft' });
             return;
         }
-        const policy = await WorkPolicy.findOne();
-        if (policy && req.user.role !== 'admin') {
-            if (isLockedByPolicy(request.week_start, policy.lock_schedule_days)) {
-                res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
-                return;
-            }
-            if (isPastDeadline(request.week_start, policy.submit_deadline_day, policy.submit_deadline_hour)) {
-                res.status(400).json({ success: false, message: 'Past deadline to submit schedule for this week' });
-                return;
+        if (req.user.role !== 'admin') {
+            const policy = await WorkPolicy.findOne();
+            if (policy) {
+                const now = new Date();
+                if (now < policy.registration_start || now > policy.registration_end) {
+                    res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
+                    return;
+                }
             }
         }
         request.status = 'pending';
@@ -218,9 +223,12 @@ export const deleteRequest = async (req, res) => {
                 return;
             }
             const policy = await WorkPolicy.findOne();
-            if (policy && isLockedByPolicy(request.week_start, policy.lock_schedule_days)) {
-                res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
-                return;
+            if (policy) {
+                const now = new Date();
+                if (now < policy.registration_start || now > policy.registration_end) {
+                    res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
+                    return;
+                }
             }
         }
         await ScheduleEntry.deleteMany({ request_id: id });

@@ -4,7 +4,7 @@ import { ScheduleRequest } from '../models/ScheduleRequest.js';
 import { ScheduleEntry } from '../models/ScheduleEntry.js';
 import { AttendanceRecord } from '../models/AttendanceRecord.js';
 import type { AuthenticatedRequest } from '../middleware/isAuth.js';
-import { parseIsoWeek } from '../utils/date.js';
+import { parseIsoWeek, getWeekStartRange } from '../utils/date.js';
 import { enrichRowsWithEmployeeProfiles } from '../utils/userProfileEnricher.js';
 
 export const getPendingRequests = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -13,7 +13,7 @@ export const getPendingRequests = async (req: AuthenticatedRequest, res: Respons
     const filter: any = { status: 'pending' };
     if (week && typeof week === 'string') {
         const matchWeek = parseIsoWeek(week);
-        if (matchWeek) filter.week_start = matchWeek;
+        if (matchWeek) filter.week_start = getWeekStartRange(matchWeek);
     }
     const requests = await ScheduleRequest.find(filter).sort({ submitted_at: 1 });
     const enriched = await enrichRowsWithEmployeeProfiles(req.headers.authorization, requests);
@@ -29,9 +29,13 @@ export const getAllRequests = async (req: AuthenticatedRequest, res: Response): 
       const filter: any = {};
       if (week && typeof week === 'string') {
           const matchWeek = parseIsoWeek(week);
-          if (matchWeek) filter.week_start = matchWeek;
+          if (matchWeek) filter.week_start = getWeekStartRange(matchWeek);
       }
-      if (status) filter.status = status;
+      if (status && status !== 'all' && status !== 'draft') {
+          filter.status = status;
+      } else {
+          filter.status = { $ne: 'draft' };
+      }
       
       const requests = await ScheduleRequest.find(filter).sort({ week_start: -1 });
       const enriched = await enrichRowsWithEmployeeProfiles(req.headers.authorization, requests);
@@ -136,7 +140,10 @@ export const getHeatmap = async (req: AuthenticatedRequest, res: Response): Prom
             if (parsed) matchWeek = parsed;
         }
 
-        const requests = await ScheduleRequest.find({ week_start: matchWeek, status: 'approved' }).select('_id');
+        const requests = await ScheduleRequest.find({
+            week_start: getWeekStartRange(matchWeek),
+            status: 'approved'
+        }).select('_id');
         const reqIds = requests.map(r => r._id);
         
         const pipeline: PipelineStage[] = [

@@ -4,23 +4,23 @@ import { ScheduleEntry } from '../models/ScheduleEntry.js';
 import { WorkPolicy } from '../models/WorkPolicy.js';
 import { AttendanceRecord } from '../models/AttendanceRecord.js';
 import type { AuthenticatedRequest } from '../middleware/isAuth.js';
-import { isMonday, parseIsoWeek, isPastDeadline, isLockedByPolicy } from '../utils/date.js';
+import { isMonday, parseIsoWeek, getWeekStartRange } from '../utils/date.js';
 import { enrichSingleWithEmployeeProfile } from '../utils/userProfileEnricher.js';
 
 export const getMySchedules = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { week } = req.query;
     const filter: any = { employee_id: req.user._id || req.user.id };
-    
+
     if (week && typeof week === 'string') {
       const matchWeek = parseIsoWeek(week);
       if (matchWeek) {
-        filter.week_start = matchWeek;
+        filter.week_start = getWeekStartRange(matchWeek);
       }
     }
 
     const requests = await ScheduleRequest.find(filter).sort({ week_start: -1 });
-    
+
     const result = [];
     for (const scheduleRequest of requests) {
       const entries = await ScheduleEntry.find({ request_id: scheduleRequest._id });
@@ -40,27 +40,30 @@ export const getMySchedules = async (req: AuthenticatedRequest, res: Response): 
 export const createRequest = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { week_start, entries } = req.body;
-    
+
     if (!isMonday(week_start)) {
       res.status(400).json({ success: false, message: 'week_start must be a Monday' });
       return;
     }
-    
-    const existing = await ScheduleRequest.findOne({ 
-      employee_id: req.user._id || req.user.id, 
-      week_start: new Date(week_start) 
+
+    const existing = await ScheduleRequest.findOne({
+      employee_id: req.user._id || req.user.id,
+      week_start: getWeekStartRange(new Date(week_start))
     });
 
     if (existing) {
-       res.status(400).json({ success: false, message: 'Schedule request for this week already exists' });
-       return;
+      res.status(400).json({ success: false, message: 'Schedule request for this week already exists' });
+      return;
     }
 
     if (req.user.role !== 'admin') {
       const policy = await WorkPolicy.findOne();
-      if (policy && isLockedByPolicy(new Date(week_start), policy.lock_schedule_days)) {
-         res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
-         return;
+      if (policy) {
+        const now = new Date();
+        if (now < policy.registration_start || now > policy.registration_end) {
+          res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
+          return;
+        }
       }
     }
 
@@ -93,30 +96,30 @@ export const createRequest = async (req: AuthenticatedRequest, res: Response): P
 };
 
 export const getRequestInfo = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    try {
-        const _id = req.params.id;
-        const employee_id = req.user._id || req.user.id;
-        let request = null;
-        if(req.user.role === 'admin') {
-            request = await ScheduleRequest.findById(_id);
-        } else {
-             request = await ScheduleRequest.findOne({ _id, employee_id });
-        }
-       
-        if (!request) {
-           res.status(404).json({ success: false, message: 'Request not found' });
-           return;
-        }
-
-        const entries = await ScheduleEntry.find({ request_id: _id });
-        const requestWithEmployee = await enrichSingleWithEmployeeProfile(
-          req.headers.authorization,
-          request
-        );
-        res.status(200).json({ success: true, data: { ...requestWithEmployee, entries } });
-    } catch (error) {
-       res.status(500).json({ success: false, message: 'Server Error' });
+  try {
+    const _id = req.params.id;
+    const employee_id = req.user._id || req.user.id;
+    let request = null;
+    if (req.user.role === 'admin') {
+      request = await ScheduleRequest.findById(_id);
+    } else {
+      request = await ScheduleRequest.findOne({ _id, employee_id });
     }
+
+    if (!request) {
+      res.status(404).json({ success: false, message: 'Request not found' });
+      return;
+    }
+
+    const entries = await ScheduleEntry.find({ request_id: _id });
+    const requestWithEmployee = await enrichSingleWithEmployeeProfile(
+      req.headers.authorization,
+      request
+    );
+    res.status(200).json({ success: true, data: { ...requestWithEmployee, entries } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
 }
 
 export const updateEntries = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -128,7 +131,7 @@ export const updateEntries = async (req: AuthenticatedRequest, res: Response): P
       res.status(400).json({ success: false, message: 'entries must be a non-empty array' });
       return;
     }
-    
+
     let request = null;
     const isAdminUser = req.user.role === 'admin';
 
@@ -137,7 +140,7 @@ export const updateEntries = async (req: AuthenticatedRequest, res: Response): P
     } else {
       request = await ScheduleRequest.findOne({ _id: id, employee_id: req.user._id || req.user.id });
     }
-    
+
     if (!request) {
       res.status(404).json({ success: false, message: 'Not found' });
       return;
@@ -150,9 +153,12 @@ export const updateEntries = async (req: AuthenticatedRequest, res: Response): P
       }
 
       const policy = await WorkPolicy.findOne();
-      if (policy && isLockedByPolicy(request.week_start, policy.lock_schedule_days)) {
-        res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
-        return;
+      if (policy) {
+        const now = new Date();
+        if (now < policy.registration_start || now > policy.registration_end) {
+          res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
+          return;
+        }
       }
     }
 
@@ -201,26 +207,25 @@ export const submitRequest = async (req: AuthenticatedRequest, res: Response): P
   try {
     const { id } = req.params;
     const request = await ScheduleRequest.findOne({ _id: id, employee_id: req.user._id || req.user.id });
-    
+
     if (!request) {
-       res.status(404).json({ success: false, message: 'Not found' });
-       return;
+      res.status(404).json({ success: false, message: 'Not found' });
+      return;
     }
-    
+
     if (request.status !== 'draft') {
       res.status(400).json({ success: false, message: 'Already submitted or not draft' });
       return;
     }
 
-    const policy = await WorkPolicy.findOne();
-    if (policy && req.user.role !== 'admin') {
-      if (isLockedByPolicy(request.week_start, policy.lock_schedule_days)) {
-         res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
-         return;
-      }
-      if (isPastDeadline(request.week_start, policy.submit_deadline_day, policy.submit_deadline_hour)) {
-         res.status(400).json({ success: false, message: 'Past deadline to submit schedule for this week' });
-         return;
+    if (req.user.role !== 'admin') {
+      const policy = await WorkPolicy.findOne();
+      if (policy) {
+        const now = new Date();
+        if (now < policy.registration_start || now > policy.registration_end) {
+          res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
+          return;
+        }
       }
     }
 
@@ -236,52 +241,55 @@ export const submitRequest = async (req: AuthenticatedRequest, res: Response): P
 
 export const deleteRequest = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-     const { id } = req.params;
-     let request = null;
-     const isAdminUser = req.user.role === 'admin';
+    const { id } = req.params;
+    let request = null;
+    const isAdminUser = req.user.role === 'admin';
 
-     if (isAdminUser) {
-        request = await ScheduleRequest.findById(id);
-     } else {
-        request = await ScheduleRequest.findOne({ _id: id, employee_id: req.user._id || req.user.id });
-     }
-     
-     if (!request) {
-        res.status(404).json({ success: false, message: 'Not found' });
+    if (isAdminUser) {
+      request = await ScheduleRequest.findById(id);
+    } else {
+      request = await ScheduleRequest.findOne({ _id: id, employee_id: req.user._id || req.user.id });
+    }
+
+    if (!request) {
+      res.status(404).json({ success: false, message: 'Not found' });
+      return;
+    }
+
+    if (!isAdminUser) {
+      if (request.status !== 'draft') {
+        res.status(400).json({ success: false, message: 'Cannot delete a non-draft request' });
         return;
-     }
-
-     if (!isAdminUser) {
-        if (request.status !== 'draft') {
-           res.status(400).json({ success: false, message: 'Cannot delete a non-draft request' });
-           return;
+      }
+      const policy = await WorkPolicy.findOne();
+      if (policy) {
+        const now = new Date();
+        if (now < policy.registration_start || now > policy.registration_end) {
+          res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
+          return;
         }
-        const policy = await WorkPolicy.findOne();
-        if (policy && isLockedByPolicy(request.week_start, policy.lock_schedule_days)) {
-           res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
-           return;
-        }
-     }
+      }
+    }
 
-     await ScheduleEntry.deleteMany({ request_id: id });
-     
-     // Delete attendance records if approved schedule is deleted
-     if (request.status === 'approved') {
-        const weekStart = new Date(request.week_start);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 7);
+    await ScheduleEntry.deleteMany({ request_id: id });
 
-        await AttendanceRecord.deleteMany({
-          employee_id: request.employee_id,
-          source: 'schedule',
-          date: { $gte: weekStart, $lt: weekEnd }
-        });
-     }
+    // Delete attendance records if approved schedule is deleted
+    if (request.status === 'approved') {
+      const weekStart = new Date(request.week_start);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 7);
 
-     await request.deleteOne();
+      await AttendanceRecord.deleteMany({
+        employee_id: request.employee_id,
+        source: 'schedule',
+        date: { $gte: weekStart, $lt: weekEnd }
+      });
+    }
 
-     res.status(200).json({ success: true, message: 'Deleted successfully' });
+    await request.deleteOne();
+
+    res.status(200).json({ success: true, message: 'Deleted successfully' });
   } catch (error) {
-     res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

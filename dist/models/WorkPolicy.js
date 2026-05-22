@@ -1,23 +1,14 @@
 import mongoose, { Schema } from 'mongoose';
 const workPolicySchema = new Schema({
-    submit_deadline_day: {
-        type: Number,
+    registration_start: {
+        type: Date,
         required: true,
-        min: 0,
-        max: 6,
-        default: 5
+        default: Date.now
     },
-    submit_deadline_hour: {
-        type: Number,
+    registration_end: {
+        type: Date,
         required: true,
-        min: 0,
-        max: 23,
-        default: 17
-    },
-    lock_schedule_days: {
-        type: Number,
-        required: true,
-        default: 7
+        default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Default to 30 days from now
     },
     updated_by: {
         type: Schema.Types.ObjectId,
