@@ -2,8 +2,9 @@ import type { Request, Response } from 'express';
 import { ScheduleRequest } from '../models/ScheduleRequest.js';
 import { ScheduleEntry } from '../models/ScheduleEntry.js';
 import { WorkPolicy } from '../models/WorkPolicy.js';
+import { AttendanceRecord } from '../models/AttendanceRecord.js';
 import type { AuthenticatedRequest } from '../middleware/isAuth.js';
-import { isMonday, parseIsoWeek, isPastDeadline } from '../utils/date.js';
+import { isMonday, parseIsoWeek, isPastDeadline, isLockedByPolicy } from '../utils/date.js';
 import { enrichSingleWithEmployeeProfile } from '../utils/userProfileEnricher.js';
 
 export const getMySchedules = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -53,6 +54,14 @@ export const createRequest = async (req: AuthenticatedRequest, res: Response): P
     if (existing) {
        res.status(400).json({ success: false, message: 'Schedule request for this week already exists' });
        return;
+    }
+
+    if (req.user.role !== 'admin') {
+      const policy = await WorkPolicy.findOne();
+      if (policy && isLockedByPolicy(new Date(week_start), policy.lock_schedule_days)) {
+         res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
+         return;
+      }
     }
 
     const newRequest = await ScheduleRequest.create({
@@ -120,18 +129,33 @@ export const updateEntries = async (req: AuthenticatedRequest, res: Response): P
       return;
     }
     
-    const request = await ScheduleRequest.findOne({ _id: id, employee_id: req.user._id || req.user.id });
+    let request = null;
+    const isAdminUser = req.user.role === 'admin';
+
+    if (isAdminUser) {
+      request = await ScheduleRequest.findById(id);
+    } else {
+      request = await ScheduleRequest.findOne({ _id: id, employee_id: req.user._id || req.user.id });
+    }
     
     if (!request) {
       res.status(404).json({ success: false, message: 'Not found' });
       return;
     }
-    if (request.status !== 'draft') {
-      res.status(400).json({ success: false, message: 'Can only edit draft requests' });
-      return;
+
+    if (!isAdminUser) {
+      if (request.status !== 'draft') {
+        res.status(400).json({ success: false, message: 'Can only edit draft requests' });
+        return;
+      }
+
+      const policy = await WorkPolicy.findOne();
+      if (policy && isLockedByPolicy(request.week_start, policy.lock_schedule_days)) {
+        res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
+        return;
+      }
     }
 
-    
     await ScheduleEntry.deleteMany({ request_id: id });
     const insertData = entries.map((e: any) => ({
       request_id: id,
@@ -140,6 +164,32 @@ export const updateEntries = async (req: AuthenticatedRequest, res: Response): P
       note: e.note
     }));
     await ScheduleEntry.insertMany(insertData);
+
+    // If already approved, sync attendance records
+    if (request.status === 'approved') {
+      const weekStart = new Date(request.week_start);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+
+      await AttendanceRecord.deleteMany({
+        employee_id: request.employee_id,
+        source: 'schedule',
+        date: { $gte: weekStart, $lt: weekEnd }
+      });
+
+      const remoteEntries = insertData.filter(e => e.type === 'remote');
+      if (remoteEntries.length > 0) {
+        const attRecords = remoteEntries.map(entry => ({
+          employee_id: request.employee_id,
+          date: entry.date,
+          schedule_type: 'remote' as const,
+          source: 'schedule' as const,
+          check_in_at: new Date(new Date(entry.date).setHours(9, 0, 0, 0)),
+          check_out_at: new Date(new Date(entry.date).setHours(18, 0, 0, 0))
+        }));
+        await AttendanceRecord.insertMany(attRecords);
+      }
+    }
 
     res.status(200).json({ success: true, message: 'Updated successfully' });
   } catch (error) {
@@ -163,7 +213,11 @@ export const submitRequest = async (req: AuthenticatedRequest, res: Response): P
     }
 
     const policy = await WorkPolicy.findOne();
-    if (policy) {
+    if (policy && req.user.role !== 'admin') {
+      if (isLockedByPolicy(request.week_start, policy.lock_schedule_days)) {
+         res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
+         return;
+      }
       if (isPastDeadline(request.week_start, policy.submit_deadline_day, policy.submit_deadline_hour)) {
          res.status(400).json({ success: false, message: 'Past deadline to submit schedule for this week' });
          return;
@@ -183,19 +237,47 @@ export const submitRequest = async (req: AuthenticatedRequest, res: Response): P
 export const deleteRequest = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
      const { id } = req.params;
-     const request = await ScheduleRequest.findOne({ _id: id, employee_id: req.user._id || req.user.id });
+     let request = null;
+     const isAdminUser = req.user.role === 'admin';
+
+     if (isAdminUser) {
+        request = await ScheduleRequest.findById(id);
+     } else {
+        request = await ScheduleRequest.findOne({ _id: id, employee_id: req.user._id || req.user.id });
+     }
      
      if (!request) {
         res.status(404).json({ success: false, message: 'Not found' });
         return;
      }
 
-     if (request.status !== 'draft') {
-        res.status(400).json({ success: false, message: 'Cannot delete a non-draft request' });
-        return;
+     if (!isAdminUser) {
+        if (request.status !== 'draft') {
+           res.status(400).json({ success: false, message: 'Cannot delete a non-draft request' });
+           return;
+        }
+        const policy = await WorkPolicy.findOne();
+        if (policy && isLockedByPolicy(request.week_start, policy.lock_schedule_days)) {
+           res.status(400).json({ success: false, message: 'This week is locked by schedule policy' });
+           return;
+        }
      }
 
      await ScheduleEntry.deleteMany({ request_id: id });
+     
+     // Delete attendance records if approved schedule is deleted
+     if (request.status === 'approved') {
+        const weekStart = new Date(request.week_start);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+
+        await AttendanceRecord.deleteMany({
+          employee_id: request.employee_id,
+          source: 'schedule',
+          date: { $gte: weekStart, $lt: weekEnd }
+        });
+     }
+
      await request.deleteOne();
 
      res.status(200).json({ success: true, message: 'Deleted successfully' });

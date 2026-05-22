@@ -33,3 +33,10 @@ export function isPastDeadline(weekStart, deadlineDay, deadlineHour) {
     const now = new Date();
     return now > deadlineDate;
 }
+export function isLockedByPolicy(weekStart, lockScheduleDays) {
+    const lockDate = new Date(weekStart);
+    lockDate.setDate(lockDate.getDate() - lockScheduleDays);
+    lockDate.setHours(0, 0, 0, 0);
+    const now = new Date();
+    return now >= lockDate;
+}
