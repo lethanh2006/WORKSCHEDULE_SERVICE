@@ -46,7 +46,7 @@ export const createRequest = async (req, res) => {
             const policy = await WorkPolicy.findOne();
             if (policy) {
                 const now = new Date();
-                if (now < policy.registration_start || now > policy.registration_end) {
+                if (policy.locked || now < policy.registration_start || now > policy.registration_end) {
                     res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
                     return;
                 }
@@ -128,7 +128,7 @@ export const updateEntries = async (req, res) => {
             const policy = await WorkPolicy.findOne();
             if (policy) {
                 const now = new Date();
-                if (now < policy.registration_start || now > policy.registration_end) {
+                if (policy.locked || now < policy.registration_start || now > policy.registration_end) {
                     res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
                     return;
                 }
@@ -187,7 +187,7 @@ export const submitRequest = async (req, res) => {
             const policy = await WorkPolicy.findOne();
             if (policy) {
                 const now = new Date();
-                if (now < policy.registration_start || now > policy.registration_end) {
+                if (policy.locked || now < policy.registration_start || now > policy.registration_end) {
                     res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
                     return;
                 }
@@ -225,7 +225,7 @@ export const deleteRequest = async (req, res) => {
             const policy = await WorkPolicy.findOne();
             if (policy) {
                 const now = new Date();
-                if (now < policy.registration_start || now > policy.registration_end) {
+                if (policy.locked || now < policy.registration_start || now > policy.registration_end) {
                     res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
                     return;
                 }

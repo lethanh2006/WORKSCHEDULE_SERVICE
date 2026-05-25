@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IWorkPolicy extends Document {
   registration_start: Date;
   registration_end: Date;
+  locked: boolean;
   updated_by?: mongoose.Types.ObjectId;
 }
 
@@ -17,6 +18,11 @@ const workPolicySchema: Schema<IWorkPolicy> = new Schema(
       type: Date,
       required: true,
       default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Default to 30 days from now
+    },
+    locked: {
+      type: Boolean,
+      required: true,
+      default: true
     },
     updated_by: {
       type: Schema.Types.ObjectId,
