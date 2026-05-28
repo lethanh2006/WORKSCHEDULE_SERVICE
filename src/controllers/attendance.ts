@@ -13,15 +13,19 @@ export const generateQrToken = async (req: AuthenticatedRequest, res: Response):
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 30 * 1000); // 30 seconds TTL
 
+    const vnOffset = 7 * 60; // 7 hours in minutes
+    const localNow = new Date(now.getTime() + (vnOffset + now.getTimezoneOffset()) * 60 * 1000);
+    const todayDate = new Date(Date.UTC(localNow.getFullYear(), localNow.getMonth(), localNow.getDate()));
+
     const token = await AttendanceQrToken.create({
       token: tokenStr,
-      date: new Date(now.setHours(0,0,0,0)),
+      date: todayDate,
       expires_at: expiresAt
     });
 
     res.status(201).json({ success: true, data: token });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: 'Lỗi hệ thống' });
   }
 };
 
@@ -38,11 +42,13 @@ export const scanQrToken = async (req: AuthenticatedRequest, res: Response): Pro
     );
 
     if (!validToken) {
-      res.status(400).json({ success: false, message: 'Invalid, used, or expired QR code' });
+      res.status(400).json({ success: false, message: 'Mã QR không hợp lệ, đã sử dụng hoặc hết hạn' });
       return;
     }
 
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const vnOffset = 7 * 60; // 7 hours in minutes
+    const localNow = new Date(now.getTime() + (vnOffset + now.getTimezoneOffset()) * 60 * 1000);
+    const startOfToday = new Date(Date.UTC(localNow.getFullYear(), localNow.getMonth(), localNow.getDate()));
     
     const requests = await ScheduleRequest.find({ employee_id: userId, status: 'approved' });
     let reqIds = requests.map(r => r._id);
@@ -54,7 +60,7 @@ export const scanQrToken = async (req: AuthenticatedRequest, res: Response): Pro
     });
 
     if (!hasOfficeEntry) {
-      res.status(400).json({ success: false, message: 'You do not have an approved office schedule for today' });
+      res.status(400).json({ success: false, message: 'Bạn không có lịch làm việc tại văn phòng được duyệt cho ngày hôm nay' });
       return;
     }
 
@@ -73,10 +79,10 @@ export const scanQrToken = async (req: AuthenticatedRequest, res: Response): Pro
         source: 'qr',
         check_in_token_id: validToken._id
       });
-      res.status(200).json({ success: true, message: 'Check-in successful', data: record });
+      res.status(200).json({ success: true, message: 'Check-in thành công', data: record });
     } else {
       if (record.check_out_at) {
-        res.status(400).json({ success: false, message: 'Already checked out for today' });
+        res.status(400).json({ success: false, message: 'Bạn đã check-out hôm nay rồi' });
         return;
       }
       
@@ -84,11 +90,11 @@ export const scanQrToken = async (req: AuthenticatedRequest, res: Response): Pro
       record.check_out_token_id = validToken._id;
       await record.save();
       
-      res.status(200).json({ success: true, message: 'Check-out successful', data: record });
+      res.status(200).json({ success: true, message: 'Check-out thành công', data: record });
     }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: 'Lỗi hệ thống' });
   }
 };
 
@@ -110,14 +116,16 @@ export const getMyAttendance = async (req: AuthenticatedRequest, res: Response):
     }));
     res.status(200).json({ success: true, count: data.length, data });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(500).json({ success: false, message: 'Lỗi hệ thống' });
   }
 };
 
 export const getTodayAttendance = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const now = new Date();
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const vnOffset = 7 * 60; // 7 hours in minutes
+      const localNow = new Date(now.getTime() + (vnOffset + now.getTimezoneOffset()) * 60 * 1000);
+      const startOfToday = new Date(Date.UTC(localNow.getFullYear(), localNow.getMonth(), localNow.getDate()));
       
       const records = await AttendanceRecord.find({ 
         date: startOfToday, check_in_at: { $exists: true } 
@@ -125,7 +133,7 @@ export const getTodayAttendance = async (req: AuthenticatedRequest, res: Respons
       const enriched = await enrichRowsWithEmployeeProfiles(req.headers.authorization, records);
       res.status(200).json({ success: true, count: enriched.length, data: enriched });
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Server Error' });
+      res.status(500).json({ success: false, message: 'Lỗi hệ thống' });
     }
 };
 
@@ -145,6 +153,6 @@ export const getReport = async (req: AuthenticatedRequest, res: Response): Promi
       const enriched = await enrichRowsWithEmployeeProfiles(req.headers.authorization, records);
       res.status(200).json({ success: true, count: enriched.length, data: enriched });
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Server Error' });
+      res.status(500).json({ success: false, message: 'Lỗi hệ thống' });
     }
 };
