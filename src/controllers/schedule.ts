@@ -65,6 +65,29 @@ export const createRequest = async (req: AuthenticatedRequest, res: Response): P
           return;
         }
       }
+
+
+      const now = new Date();
+      const weekStartDate = new Date(week_start);
+      weekStartDate.setHours(0, 0, 0, 0);
+
+      const currentWeekMon = new Date(now);
+      const currentDay = currentWeekMon.getDay();
+      const currentDiff = currentWeekMon.getDate() - (currentDay === 0 ? 6 : currentDay - 1);
+      currentWeekMon.setDate(currentDiff);
+      currentWeekMon.setHours(0, 0, 0, 0);
+
+      const maxAllowedWeekStart = new Date(currentWeekMon);
+      maxAllowedWeekStart.setDate(maxAllowedWeekStart.getDate() + 28);
+      maxAllowedWeekStart.setHours(0, 0, 0, 0);
+
+      if (weekStartDate > maxAllowedWeekStart) {
+        res.status(400).json({
+          success: false,
+          message: 'Không được phép đăng ký lịch làm việc quá xa trong tương lai (tối đa 4 tuần tới).'
+        });
+        return;
+      }
     }
 
     const newRequest = await ScheduleRequest.create({
@@ -159,6 +182,31 @@ export const updateEntries = async (req: AuthenticatedRequest, res: Response): P
           res.status(400).json({ success: false, message: 'Ngoài khoảng thời gian đăng ký lịch làm việc' });
           return;
         }
+      }
+
+      // Giới hạn không cho phép đăng ký lịch quá xa trong tương lai (tối đa 4 tuần tới kể từ tuần hiện tại)
+      const now = new Date();
+      const weekStartDate = new Date(request.week_start);
+      weekStartDate.setHours(0, 0, 0, 0);
+
+      // Lấy ngày Thứ Hai của tuần hiện tại để làm mốc tính toán chính xác
+      const currentWeekMon = new Date(now);
+      const currentDay = currentWeekMon.getDay();
+      const currentDiff = currentWeekMon.getDate() - (currentDay === 0 ? 6 : currentDay - 1);
+      currentWeekMon.setDate(currentDiff);
+      currentWeekMon.setHours(0, 0, 0, 0);
+
+      // Mốc tối đa cho phép: Thứ Hai hiện tại + 28 ngày (4 tuần)
+      const maxAllowedWeekStart = new Date(currentWeekMon);
+      maxAllowedWeekStart.setDate(maxAllowedWeekStart.getDate() + 28);
+      maxAllowedWeekStart.setHours(0, 0, 0, 0);
+
+      if (weekStartDate > maxAllowedWeekStart) {
+        res.status(400).json({
+          success: false,
+          message: 'Không được phép đăng ký lịch làm việc quá xa trong tương lai (tối đa 4 tuần tới).'
+        });
+        return;
       }
     }
 
