@@ -9,7 +9,7 @@ export const getUserProfiles = async (token: string, userIds?: string[]) => {
     const response = await axios.get(`${USER_SERVICE_URL}/api/user/user/all`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    
+
     const allUsers = response.data.users || [];
     if (userIds && userIds.length > 0) {
       return allUsers.filter((u: any) => userIds.includes(u._id));
