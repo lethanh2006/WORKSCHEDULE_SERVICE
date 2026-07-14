@@ -6,14 +6,14 @@ import {
   getTodayAttendance,
   getReport
 } from '../controllers/attendance.js';
-import { isAuth, requirePermission } from '../middleware/isAuth.js';
+import { isAuth } from '../middleware/isAuth.js';
 
 const router = Router();
 
-router.post('/attendance/scan', isAuth, requirePermission('attendance:scan'), scanQrToken);
-router.get('/attendance/my', isAuth, requirePermission('attendance:read-own'), getMyAttendance);
-router.post('/attendance/qr/generate', isAuth, requirePermission('attendance:qr-generate'), generateQrToken);
-router.get('/attendance/today', isAuth, requirePermission('attendance:read-all'), getTodayAttendance);
-router.get('/attendance/report', isAuth, requirePermission('attendance:report'), getReport);
+router.post('/attendance/scan', isAuth, scanQrToken);
+router.get('/attendance/my', isAuth, getMyAttendance);
+router.post('/attendance/qr/generate', isAuth, generateQrToken);
+router.get('/attendance/today', isAuth, getTodayAttendance);
+router.get('/attendance/report', isAuth, getReport);
 
 export default router;

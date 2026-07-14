@@ -7,15 +7,15 @@ import {
   bulkApprove,
   getHeatmap
 } from '../controllers/adminSchedule.js';
-import { isAuth, requirePermission } from '../middleware/isAuth.js';
+import { isAuth } from '../middleware/isAuth.js';
 
 const router = Router();
 
-router.get('/schedule/pending', isAuth, requirePermission('schedule:read-all'), getPendingRequests);
-router.get('/schedule/all', isAuth, requirePermission('schedule:read-all'), getAllRequests);
-router.post('/schedule/requests/:id/approve', isAuth, requirePermission('schedule:approve'), approveRequest);
-router.post('/schedule/requests/:id/reject', isAuth, requirePermission('schedule:approve'), rejectRequest);
-router.post('/schedule/requests/bulk-approve', isAuth, requirePermission('schedule:approve'), bulkApprove);
-router.get('/schedule/heatmap', isAuth, requirePermission('schedule:read-all'), getHeatmap);
+router.get('/schedule/pending', isAuth, getPendingRequests);
+router.get('/schedule/all', isAuth, getAllRequests);
+router.post('/schedule/requests/:id/approve', isAuth, approveRequest);
+router.post('/schedule/requests/:id/reject', isAuth, rejectRequest);
+router.post('/schedule/requests/bulk-approve', isAuth, bulkApprove);
+router.get('/schedule/heatmap', isAuth, getHeatmap);
 
 export default router;
