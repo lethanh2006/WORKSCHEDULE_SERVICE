@@ -14,11 +14,3 @@ export const isAuth = (req: AuthenticatedRequest, res: Response, next: NextFunct
     next();
 };
 
-export const isAdmin = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-    if (!req.user || req.user.role !== "admin") {
-        res.status(403).json({ message: "Forbidden: Admins only" });
-        return;
-    }
-    next();
-};
-
