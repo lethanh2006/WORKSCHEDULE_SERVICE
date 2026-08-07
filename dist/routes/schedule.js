@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { getMySchedules, createRequest, getRequestInfo, updateEntries, submitRequest, deleteRequest } from '../controllers/schedule.js';
+import { getMyMonthlyOverview } from '../controllers/scheduleOverview.js';
 import { isAuth } from '../middleware/isAuth.js';
 const router = Router();
 router.get('/schedule/my', isAuth, getMySchedules);
+router.get('/schedule/monthly-overview', isAuth, getMyMonthlyOverview);
 router.post('/schedule/requests', isAuth, createRequest);
 router.get('/schedule/requests/:id', isAuth, getRequestInfo);
 router.patch('/schedule/requests/:id', isAuth, updateEntries);
