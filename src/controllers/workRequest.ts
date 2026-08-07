@@ -6,6 +6,8 @@ import { normalizeWorkRequest } from '../services/workRequestValidator.js';
 import { enrichRowsWithEmployeeProfiles } from '../utils/userProfileEnricher.js';
 
 const getEmployeeId = (req: AuthenticatedRequest) => req.user._id || req.user.id;
+const canReviewRequests = (role: unknown) =>
+  typeof role === 'string' && ['admin', 'manager', 'chef'].includes(role.toLowerCase());
 
 const parseMonth = (value: unknown) => {
   if (typeof value !== 'string') return null;
@@ -146,7 +148,7 @@ export const getAdminWorkRequests = async (
   res: Response
 ): Promise<void> => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!canReviewRequests(req.user.role)) {
       res.status(403).json({ success: false, message: 'Bạn không có quyền xem danh sách này.' });
       return;
     }
@@ -170,7 +172,7 @@ const reviewWorkRequest = async (
   res: Response,
   status: 'approved' | 'rejected'
 ) => {
-  if (req.user.role !== 'admin') {
+  if (!canReviewRequests(req.user.role)) {
     res.status(403).json({ success: false, message: 'Bạn không có quyền duyệt đơn.' });
     return;
   }

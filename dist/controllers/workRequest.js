@@ -2,6 +2,7 @@ import { WorkRequest } from '../models/WorkRequest.js';
 import { normalizeWorkRequest } from '../services/workRequestValidator.js';
 import { enrichRowsWithEmployeeProfiles } from '../utils/userProfileEnricher.js';
 const getEmployeeId = (req) => req.user._id || req.user.id;
+const canReviewRequests = (role) => typeof role === 'string' && ['admin', 'manager', 'chef'].includes(role.toLowerCase());
 const parseMonth = (value) => {
     if (typeof value !== 'string')
         return null;
@@ -131,7 +132,7 @@ export const cancelMyWorkRequest = async (req, res) => {
 };
 export const getAdminWorkRequests = async (req, res) => {
     try {
-        if (req.user.role !== 'admin') {
+        if (!canReviewRequests(req.user.role)) {
             res.status(403).json({ success: false, message: 'Bạn không có quyền xem danh sách này.' });
             return;
         }
@@ -153,7 +154,7 @@ export const getAdminWorkRequests = async (req, res) => {
     }
 };
 const reviewWorkRequest = async (req, res, status) => {
-    if (req.user.role !== 'admin') {
+    if (!canReviewRequests(req.user.role)) {
         res.status(403).json({ success: false, message: 'Bạn không có quyền duyệt đơn.' });
         return;
     }
