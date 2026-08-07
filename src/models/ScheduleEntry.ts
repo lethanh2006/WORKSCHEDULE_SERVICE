@@ -4,6 +4,7 @@ export interface IScheduleEntry extends Document {
   request_id: mongoose.Types.ObjectId;
   date: Date;
   type: 'office' | 'remote' | 'day_off' | 'leave';
+  period: 'full_day' | 'morning' | 'afternoon';
   note?: string;
 }
 
@@ -16,7 +17,13 @@ const scheduleEntrySchema: Schema<IScheduleEntry> = new Schema(
       enum: ['office', 'remote', 'day_off', 'leave'],
       required: true
     },
-    note: { type: String }
+    period: {
+      type: String,
+      enum: ['full_day', 'morning', 'afternoon'],
+      default: 'full_day',
+      required: true
+    },
+    note: { type: String, trim: true, maxlength: 200 }
   },
   { timestamps: true }
 );

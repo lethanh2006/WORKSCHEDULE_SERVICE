@@ -3,6 +3,23 @@ import { ScheduleEntry } from '../models/ScheduleEntry.js';
 import { AttendanceRecord } from '../models/AttendanceRecord.js';
 import { parseIsoWeek, getWeekStartRange } from '../utils/date.js';
 import { enrichRowsWithEmployeeProfiles } from '../utils/userProfileEnricher.js';
+const getRemoteAttendanceTimes = (date, period) => {
+    const checkIn = new Date(date);
+    const checkOut = new Date(date);
+    if (period === 'morning') {
+        checkIn.setHours(8, 30, 0, 0);
+        checkOut.setHours(12, 0, 0, 0);
+    }
+    else if (period === 'afternoon') {
+        checkIn.setHours(13, 30, 0, 0);
+        checkOut.setHours(17, 30, 0, 0);
+    }
+    else {
+        checkIn.setHours(8, 30, 0, 0);
+        checkOut.setHours(17, 30, 0, 0);
+    }
+    return { checkIn, checkOut };
+};
 export const getPendingRequests = async (req, res) => {
     try {
         const { week } = req.query;
@@ -53,14 +70,17 @@ const handleApproveSideEffects = async (requestId, adminId) => {
     await request.save();
     const remoteEntries = await ScheduleEntry.find({ request_id: requestId, type: 'remote' });
     if (remoteEntries.length > 0) {
-        const insertData = remoteEntries.map(entry => ({
-            employee_id: request.employee_id,
-            date: entry.date,
-            schedule_type: 'remote',
-            source: 'schedule',
-            check_in_at: new Date(entry.date.setHours(9, 0, 0, 0)),
-            check_out_at: new Date(entry.date.setHours(18, 0, 0, 0))
-        }));
+        const insertData = remoteEntries.map(entry => {
+            const { checkIn, checkOut } = getRemoteAttendanceTimes(entry.date, entry.period);
+            return {
+                employee_id: request.employee_id,
+                date: entry.date,
+                schedule_type: 'remote',
+                source: 'schedule',
+                check_in_at: checkIn,
+                check_out_at: checkOut
+            };
+        });
         await AttendanceRecord.insertMany(insertData);
     }
 };

@@ -4,6 +4,7 @@ import { WorkPolicy } from '../models/WorkPolicy.js';
 import { AttendanceRecord } from '../models/AttendanceRecord.js';
 import { isMonday, parseIsoWeek, getWeekStartRange } from '../utils/date.js';
 import { enrichSingleWithEmployeeProfile } from '../utils/userProfileEnricher.js';
+import { normalizeScheduleEntries } from '../services/scheduleEntryValidator.js';
 export const getMySchedules = async (req, res) => {
     try {
         const { week } = req.query;
@@ -31,7 +32,12 @@ export const createRequest = async (req, res) => {
     try {
         const { week_start, entries } = req.body;
         if (!isMonday(week_start)) {
-            res.status(400).json({ success: false, message: 'week_start must be a Monday' });
+            res.status(400).json({ success: false, message: 'Tuần đăng ký phải bắt đầu từ thứ Hai.' });
+            return;
+        }
+        const normalized = normalizeScheduleEntries(entries, new Date(week_start));
+        if (!normalized.entries) {
+            res.status(400).json({ success: false, message: normalized.message });
             return;
         }
         const existing = await ScheduleRequest.findOne({
@@ -75,15 +81,12 @@ export const createRequest = async (req, res) => {
             week_start,
             status: 'draft'
         });
-        if (entries && Array.isArray(entries)) {
-            if (entries.length === 0) {
-                res.status(400).json({ success: false, message: 'entries must not be empty' });
-                return;
-            }
-            const insertData = entries.map(e => ({
+        if (normalized.entries.length > 0) {
+            const insertData = normalized.entries.map(e => ({
                 request_id: newRequest._id,
-                date: new Date(e.date),
+                date: e.date,
                 type: e.type,
+                period: e.period,
                 note: e.note
             }));
             await ScheduleEntry.insertMany(insertData);
@@ -122,10 +125,6 @@ export const updateEntries = async (req, res) => {
     try {
         const { id } = req.params;
         const { entries } = req.body;
-        if (!Array.isArray(entries) || entries.length === 0) {
-            res.status(400).json({ success: false, message: 'entries must be a non-empty array' });
-            return;
-        }
         let request = null;
         const isAdminUser = req.user.role === 'admin';
         if (isAdminUser) {
@@ -136,6 +135,11 @@ export const updateEntries = async (req, res) => {
         }
         if (!request) {
             res.status(404).json({ success: false, message: 'Not found' });
+            return;
+        }
+        const normalized = normalizeScheduleEntries(entries, new Date(request.week_start));
+        if (!normalized.entries) {
+            res.status(400).json({ success: false, message: normalized.message });
             return;
         }
         if (!isAdminUser) {
@@ -174,10 +178,11 @@ export const updateEntries = async (req, res) => {
             }
         }
         await ScheduleEntry.deleteMany({ request_id: id });
-        const insertData = entries.map((e) => ({
+        const insertData = normalized.entries.map(e => ({
             request_id: id,
-            date: new Date(e.date),
+            date: e.date,
             type: e.type,
+            period: e.period,
             note: e.note
         }));
         await ScheduleEntry.insertMany(insertData);
@@ -193,14 +198,30 @@ export const updateEntries = async (req, res) => {
             });
             const remoteEntries = insertData.filter(e => e.type === 'remote');
             if (remoteEntries.length > 0) {
-                const attRecords = remoteEntries.map(entry => ({
-                    employee_id: request.employee_id,
-                    date: entry.date,
-                    schedule_type: 'remote',
-                    source: 'schedule',
-                    check_in_at: new Date(new Date(entry.date).setHours(9, 0, 0, 0)),
-                    check_out_at: new Date(new Date(entry.date).setHours(18, 0, 0, 0))
-                }));
+                const attRecords = remoteEntries.map(entry => {
+                    const checkIn = new Date(entry.date);
+                    const checkOut = new Date(entry.date);
+                    if (entry.period === 'morning') {
+                        checkIn.setHours(8, 30, 0, 0);
+                        checkOut.setHours(12, 0, 0, 0);
+                    }
+                    else if (entry.period === 'afternoon') {
+                        checkIn.setHours(13, 30, 0, 0);
+                        checkOut.setHours(17, 30, 0, 0);
+                    }
+                    else {
+                        checkIn.setHours(8, 30, 0, 0);
+                        checkOut.setHours(17, 30, 0, 0);
+                    }
+                    return {
+                        employee_id: request.employee_id,
+                        date: entry.date,
+                        schedule_type: 'remote',
+                        source: 'schedule',
+                        check_in_at: checkIn,
+                        check_out_at: checkOut
+                    };
+                });
                 await AttendanceRecord.insertMany(attRecords);
             }
         }

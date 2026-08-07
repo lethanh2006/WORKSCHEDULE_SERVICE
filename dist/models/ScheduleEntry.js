@@ -7,6 +7,12 @@ const scheduleEntrySchema = new Schema({
         enum: ['office', 'remote', 'day_off', 'leave'],
         required: true
     },
-    note: { type: String }
+    period: {
+        type: String,
+        enum: ['full_day', 'morning', 'afternoon'],
+        default: 'full_day',
+        required: true
+    },
+    note: { type: String, trim: true, maxlength: 200 }
 }, { timestamps: true });
 export const ScheduleEntry = mongoose.model('ScheduleEntry', scheduleEntrySchema);
