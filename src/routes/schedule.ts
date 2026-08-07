@@ -8,6 +8,15 @@ import {
   deleteRequest
 } from '../controllers/schedule.js';
 import { getMyMonthlyOverview } from '../controllers/scheduleOverview.js';
+import {
+  approveWorkRequest,
+  cancelMyWorkRequest,
+  createWorkRequest,
+  getAdminWorkRequests,
+  getMyWorkRequests,
+  getMyWorkRequestStats,
+  rejectWorkRequest
+} from '../controllers/workRequest.js';
 import { isAuth } from '../middleware/isAuth.js';
 
 const router = Router();
@@ -19,5 +28,13 @@ router.get('/schedule/requests/:id', isAuth, getRequestInfo);
 router.patch('/schedule/requests/:id', isAuth, updateEntries);
 router.post('/schedule/requests/:id/submit', isAuth, submitRequest);
 router.delete('/schedule/requests/:id', isAuth, deleteRequest);
+
+router.get('/requests/my/stats', isAuth, getMyWorkRequestStats);
+router.get('/requests/my', isAuth, getMyWorkRequests);
+router.post('/requests', isAuth, createWorkRequest);
+router.patch('/requests/:id/cancel', isAuth, cancelMyWorkRequest);
+router.get('/requests/admin', isAuth, getAdminWorkRequests);
+router.post('/requests/:id/approve', isAuth, approveWorkRequest);
+router.post('/requests/:id/reject', isAuth, rejectWorkRequest);
 
 export default router;
