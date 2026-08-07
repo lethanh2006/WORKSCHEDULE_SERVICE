@@ -5,6 +5,7 @@ import { AttendanceRecord } from '../models/AttendanceRecord.js';
 import { isMonday, parseIsoWeek, getWeekStartRange } from '../utils/date.js';
 import { enrichSingleWithEmployeeProfile } from '../utils/userProfileEnricher.js';
 import { normalizeScheduleEntries } from '../services/scheduleEntryValidator.js';
+const canManageSchedules = (role) => ['admin', 'manager', 'chef'].includes(String(role || '').toLowerCase());
 export const getMySchedules = async (req, res) => {
     try {
         const { week } = req.query;
@@ -103,7 +104,7 @@ export const getRequestInfo = async (req, res) => {
         const _id = req.params.id;
         const employee_id = req.user._id || req.user.id;
         let request = null;
-        if (req.user.role === 'admin') {
+        if (canManageSchedules(req.user.role)) {
             request = await ScheduleRequest.findById(_id);
         }
         else {
@@ -126,8 +127,8 @@ export const updateEntries = async (req, res) => {
         const { id } = req.params;
         const { entries } = req.body;
         let request = null;
-        const isAdminUser = req.user.role === 'admin';
-        if (isAdminUser) {
+        const canManageRequest = canManageSchedules(req.user.role);
+        if (canManageRequest) {
             request = await ScheduleRequest.findById(id);
         }
         else {
@@ -142,7 +143,7 @@ export const updateEntries = async (req, res) => {
             res.status(400).json({ success: false, message: normalized.message });
             return;
         }
-        if (!isAdminUser) {
+        if (!canManageRequest) {
             if (request.status !== 'draft') {
                 res.status(400).json({ success: false, message: 'Can only edit draft requests' });
                 return;
