@@ -83,11 +83,15 @@ export const getMyWorkRequestStats = async (
 
     const requests = await WorkRequest.find(filter).select('type status start_at end_at period').lean();
     const byType: Record<string, number> = {};
+    const approvedByType: Record<string, number> = {};
     const byStatus: Record<string, number> = {};
     let approvedOvertimeHours = 0;
     requests.forEach(request => {
       byType[request.type] = (byType[request.type] || 0) + 1;
       byStatus[request.status] = (byStatus[request.status] || 0) + 1;
+      if (request.status === 'approved') {
+        approvedByType[request.type] = (approvedByType[request.type] || 0) + 1;
+      }
       if (request.type === 'overtime' && request.status === 'approved' && request.end_at) {
         approvedOvertimeHours +=
           (new Date(request.end_at).getTime() - new Date(request.start_at).getTime()) / 3_600_000;
@@ -103,7 +107,8 @@ export const getMyWorkRequestStats = async (
         rejected: byStatus.rejected || 0,
         cancelled: byStatus.cancelled || 0,
         approved_overtime_hours: Math.round(approvedOvertimeHours * 10) / 10,
-        by_type: byType
+        by_type: byType,
+        approved_by_type: approvedByType
       }
     });
   } catch (error) {
