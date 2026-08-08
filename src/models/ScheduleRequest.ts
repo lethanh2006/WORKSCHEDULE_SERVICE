@@ -3,7 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IScheduleRequest extends Document {
   employee_id: mongoose.Types.ObjectId;
   week_start: Date;
-  status: 'draft' | 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected';
   submitted_at?: Date;
   reviewed_by?: mongoose.Types.ObjectId;
   reviewed_at?: Date;
@@ -16,8 +16,8 @@ const scheduleRequestSchema: Schema<IScheduleRequest> = new Schema(
     week_start: { type: Date, required: true },
     status: {
       type: String,
-      enum: ['draft', 'pending', 'approved', 'rejected'],
-      default: 'draft'
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending'
     },
     submitted_at: { type: Date },
     reviewed_by: { type: Schema.Types.ObjectId },

@@ -50,10 +50,8 @@ export const getAllRequests = async (req: AuthenticatedRequest, res: Response): 
           const matchWeek = parseIsoWeek(week);
           if (matchWeek) filter.week_start = getWeekStartRange(matchWeek);
       }
-      if (status && status !== 'all' && status !== 'draft') {
+      if (status && status !== 'all') {
           filter.status = status;
-      } else {
-          filter.status = { $ne: 'draft' };
       }
       
       const requests = await ScheduleRequest.find(filter).sort({ week_start: -1 });

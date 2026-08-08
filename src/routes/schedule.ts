@@ -4,7 +4,6 @@ import {
   createRequest,
   getRequestInfo,
   updateEntries,
-  submitRequest,
   deleteRequest
 } from '../controllers/schedule.js';
 import { getMyMonthlyOverview } from '../controllers/scheduleOverview.js';
@@ -26,7 +25,6 @@ router.get('/schedule/monthly-overview', isAuth, getMyMonthlyOverview);
 router.post('/schedule/requests', isAuth, createRequest);
 router.get('/schedule/requests/:id', isAuth, getRequestInfo);
 router.patch('/schedule/requests/:id', isAuth, updateEntries);
-router.post('/schedule/requests/:id/submit', isAuth, submitRequest);
 router.delete('/schedule/requests/:id', isAuth, deleteRequest);
 
 router.get('/requests/my/stats', isAuth, getMyWorkRequestStats);

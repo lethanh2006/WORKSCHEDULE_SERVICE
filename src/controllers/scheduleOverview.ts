@@ -50,7 +50,7 @@ export const getMyMonthlyOverview = async (
         _id: entry._id,
         schedule_request_id: entry.request_id,
         week_start: scheduleRequest?.week_start,
-        request_status: scheduleRequest?.status || 'draft',
+        request_status: scheduleRequest?.status || 'pending',
         reject_reason: scheduleRequest?.reject_reason,
         date: entry.date,
         type: entry.type,
@@ -94,7 +94,6 @@ export const getMyMonthlyOverview = async (
               .filter(entry => entry.type === 'office' || entry.type === 'remote')
               .map(entry => new Date(entry.date).toISOString().slice(0, 10))
           ).size,
-          draft_requests: requestCounts.draft || 0,
           pending_requests: requestCounts.pending || 0,
           approved_requests: requestCounts.approved || 0,
           rejected_requests: requestCounts.rejected || 0
