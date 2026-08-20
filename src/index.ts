@@ -2,9 +2,6 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDb from './config/db.js';
-// import taskRoutes from './routes/workschedule.js';
-import swaggerJsdoc from 'swagger-jsdoc';
-import swaggerUi from 'swagger-ui-express';
 
 dotenv.config();
 
@@ -28,35 +25,6 @@ app.use("/api/workschedule", policyRoutes);
 app.use("/api/workschedule", scheduleRoutes);
 app.use("/api/workschedule", adminScheduleRoutes);
 app.use("/api/workschedule", attendanceRoutes);
-const swaggerSpec = swaggerJsdoc({
-  definition: {
-    openapi: '3.0.0',
-    info: { title: 'Workschedule Service API', version: '1.0.0' },
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-        },
-      },
-    },
-    security: [
-      {
-        bearerAuth: [],
-      },
-    ],
-  },
-  apis: ['./src/routes/*.ts', './dist/routes/*.js'],
-});
-
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
-app.get('/api/docs.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
-});
-
 const port = process.env.PORT || 5004;
 
 app.listen(port, () => {

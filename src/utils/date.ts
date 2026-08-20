@@ -1,13 +1,3 @@
-export function getNextMonday(date: Date = new Date()): Date {
-    const d = new Date(date);
-    const day = d.getUTCDay();
-    const diff = d.getUTCDate() + (day === 0 ? 1 : 8 - day);
-    const nextMon = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diff));
-    nextMon.setUTCHours(0, 0, 0, 0);
-    return nextMon;
-}
-
-
 export function isMonday(dateString: string): boolean {
     const d = new Date(dateString);
     return d.getUTCDay() === 1;
@@ -34,24 +24,6 @@ export function parseIsoWeek(isoWeekStr: string): Date | null {
     return getDateOfISOWeek(week, year);
 }
 
-export function isPastDeadline(weekStart: Date, deadlineDay: number, deadlineHour: number): boolean {
-    const deadlineDate = new Date(weekStart);
-    deadlineDate.setUTCDate(deadlineDate.getUTCDate() - (7 - deadlineDay + 1));
-    deadlineDate.setUTCHours(deadlineHour, 0, 0, 0);
-
-    const now = new Date();
-    return now > deadlineDate;
-}
-
-export function isLockedByPolicy(weekStart: Date, lockScheduleDays: number): boolean {
-    const lockDate = new Date(weekStart);
-    lockDate.setUTCDate(lockDate.getUTCDate() - lockScheduleDays);
-    lockDate.setUTCHours(0, 0, 0, 0);
-
-    const now = new Date();
-    return now >= lockDate;
-}
-
 export function getWeekStartRange(monday: Date): { $gte: Date; $lt: Date } {
     const start = new Date(monday);
     start.setUTCDate(start.getUTCDate() - 1);
@@ -63,5 +35,4 @@ export function getWeekStartRange(monday: Date): { $gte: Date; $lt: Date } {
 
     return { $gte: start, $lt: end };
 }
-
 

@@ -20,15 +20,3 @@ export const getUserProfiles = async (token: string, userIds?: string[]) => {
     return null;
   }
 };
-
-export const getUserById = async (token: string, userId: string) => {
-  try {
-    const response = await axios.get(`${USER_SERVICE_URL}/api/user/user/${userId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching user by id:', error);
-    return null;
-  }
-}
