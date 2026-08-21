@@ -1,38 +1,35 @@
 export function isMonday(dateString: string): boolean {
-    const d = new Date(dateString);
-    return d.getUTCDay() === 1;
+  const d = new Date(dateString);
+  return d.getUTCDay() === 1;
 }
 
-
 export function getDateOfISOWeek(w: number, y: number): Date {
-    const simple = new Date(Date.UTC(y, 0, 1 + (w - 1) * 7));
-    const dow = simple.getUTCDay();
-    const ISOweekStart = simple;
-    if (dow <= 4)
-        ISOweekStart.setUTCDate(simple.getUTCDate() - simple.getUTCDay() + 1);
-    else
-        ISOweekStart.setUTCDate(simple.getUTCDate() + 8 - simple.getUTCDay());
-    ISOweekStart.setUTCHours(0, 0, 0, 0);
-    return ISOweekStart;
+  const simple = new Date(Date.UTC(y, 0, 1 + (w - 1) * 7));
+  const dow = simple.getUTCDay();
+  const ISOweekStart = simple;
+  if (dow <= 4)
+    ISOweekStart.setUTCDate(simple.getUTCDate() - simple.getUTCDay() + 1);
+  else ISOweekStart.setUTCDate(simple.getUTCDate() + 8 - simple.getUTCDay());
+  ISOweekStart.setUTCHours(0, 0, 0, 0);
+  return ISOweekStart;
 }
 
 export function parseIsoWeek(isoWeekStr: string): Date | null {
-    const match = isoWeekStr.match(/^(\d{4})-W(\d{1,2})$/);
-    if (!match) return null;
-    const year = parseInt(match[1]);
-    const week = parseInt(match[2]);
-    return getDateOfISOWeek(week, year);
+  const match = isoWeekStr.match(/^(\d{4})-W(\d{1,2})$/);
+  if (!match) return null;
+  const year = parseInt(match[1]);
+  const week = parseInt(match[2]);
+  return getDateOfISOWeek(week, year);
 }
 
 export function getWeekStartRange(monday: Date): { $gte: Date; $lt: Date } {
-    const start = new Date(monday);
-    start.setUTCDate(start.getUTCDate() - 1);
-    start.setUTCHours(0, 0, 0, 0);
+  const start = new Date(monday);
+  start.setUTCDate(start.getUTCDate() - 1);
+  start.setUTCHours(0, 0, 0, 0);
 
-    const end = new Date(monday);
-    end.setUTCDate(end.getUTCDate() + 1);
-    end.setUTCHours(0, 0, 0, 0);
+  const end = new Date(monday);
+  end.setUTCDate(end.getUTCDate() + 1);
+  end.setUTCHours(0, 0, 0, 0);
 
-    return { $gte: start, $lt: end };
+  return { $gte: start, $lt: end };
 }
-
