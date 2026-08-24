@@ -18,7 +18,10 @@ import {
   type WorkPeriod,
 } from "../../schemas/schedule-entry.schema";
 import { ScheduleRequest } from "../../schemas/schedule-request.schema";
-import { normalizeScheduleEntries } from "../../services/scheduleEntryValidator";
+import {
+  normalizeScheduleEntries,
+  type NormalizedScheduleEntry,
+} from "../../services/scheduleEntryValidator";
 import { getWeekStartRange, isMonday, parseIsoWeek } from "../../utils/date";
 import { atVietnamTime } from "../../utils/vietnam-time";
 import { UserClientService } from "../user-client/user-client.service";
@@ -191,7 +194,6 @@ export class ScheduleService {
           message: normalized.message,
         });
       }
-      await this.entries.deleteMany({ request_id: id });
       const inserted = normalized.entries.map((entry) => ({
         request_id: id,
         date: entry.date,
@@ -199,7 +201,7 @@ export class ScheduleService {
         period: entry.period,
         note: entry.note,
       }));
-      await this.entries.insertMany(inserted);
+      await this.replaceScheduleEntries(id, normalized.entries);
       if (request.status === "approved") {
         const end = new Date(request.week_start);
         end.setDate(end.getDate() + 7);
@@ -509,6 +511,34 @@ export class ScheduleService {
         }),
       );
     }
+  }
+
+  private async replaceScheduleEntries(
+    requestId: string,
+    replacement: NormalizedScheduleEntry[],
+  ): Promise<void> {
+    await this.entries.bulkWrite(
+      replacement.map((entry) => ({
+        updateOne: {
+          filter: { request_id: requestId, date: entry.date },
+          update: {
+            $set: {
+              type: entry.type,
+              period: entry.period,
+              ...(entry.note ? { note: entry.note } : {}),
+            },
+            $setOnInsert: { request_id: requestId, date: entry.date },
+            ...(!entry.note ? { $unset: { note: "" } } : {}),
+          },
+          upsert: true,
+        },
+      })),
+    );
+
+    await this.entries.deleteMany({
+      request_id: requestId,
+      date: { $nin: replacement.map((entry) => entry.date) },
+    });
   }
 
   private remoteTimes(date: Date, period: WorkPeriod) {

@@ -36,3 +36,4 @@ export class ScheduleEntry {
   note?: string;
 }
 export const ScheduleEntrySchema = SchemaFactory.createForClass(ScheduleEntry);
+ScheduleEntrySchema.index({ request_id: 1, date: 1 }, { unique: true });
