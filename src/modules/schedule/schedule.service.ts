@@ -18,11 +18,11 @@ import {
   type WorkPeriod,
 } from "../../schemas/schedule-entry.schema";
 import { ScheduleRequest } from "../../schemas/schedule-request.schema";
-import { WorkPolicy } from "../../schemas/work-policy.schema";
 import { normalizeScheduleEntries } from "../../services/scheduleEntryValidator";
 import { getWeekStartRange, isMonday, parseIsoWeek } from "../../utils/date";
 import { atVietnamTime } from "../../utils/vietnam-time";
 import { UserClientService } from "../user-client/user-client.service";
+import { PolicyService } from "../policy/policy.service";
 import {
   BulkApproveScheduleDto,
   CreateScheduleRequestDto,
@@ -35,9 +35,9 @@ export class ScheduleService {
   constructor(
     @InjectModel(ScheduleRequest.name) private readonly requests: Model<any>,
     @InjectModel(ScheduleEntry.name) private readonly entries: Model<any>,
-    @InjectModel(WorkPolicy.name) private readonly policies: Model<any>,
     @InjectModel(AttendanceRecord.name) private readonly attendance: Model<any>,
     private readonly users: UserClientService,
+    private readonly policies: PolicyService,
   ) {}
 
   async getMine(
@@ -99,21 +99,18 @@ export class ScheduleService {
       }
 
       if (user.role?.toLowerCase() !== "admin") {
-        const policy = await this.policies.findOne();
-        if (policy) {
-          const now = new Date();
-          if (
-            policy.locked ||
-            now < policy.registration_start ||
-            now > policy.registration_end
-          ) {
-            throw new BadRequestException({
-              success: false,
-              message: "Ngoài khoảng thời gian đăng ký lịch làm việc",
-            });
-          }
-        }
+        const policy = await this.policies.getActivePolicy();
         const now = new Date();
+        if (
+          policy.locked ||
+          now < policy.registration_start ||
+          now > policy.registration_end
+        ) {
+          throw new BadRequestException({
+            success: false,
+            message: "Ngoài khoảng thời gian đăng ký lịch làm việc",
+          });
+        }
         const weekStart = new Date(dto.week_start);
         weekStart.setHours(0, 0, 0, 0);
         const currentMonday = new Date(now);

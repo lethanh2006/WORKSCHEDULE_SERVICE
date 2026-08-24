@@ -12,7 +12,7 @@ import {
   ScheduleRequest,
   ScheduleRequestSchema,
 } from "../../schemas/schedule-request.schema";
-import { WorkPolicy, WorkPolicySchema } from "../../schemas/work-policy.schema";
+import { PolicyModule } from "../policy/policy.module";
 import { UserClientModule } from "../user-client/user-client.module";
 import { ScheduleController } from "./schedule.controller";
 import { ScheduleService } from "./schedule.service";
@@ -22,9 +22,9 @@ import { ScheduleService } from "./schedule.service";
     MongooseModule.forFeature([
       { name: ScheduleRequest.name, schema: ScheduleRequestSchema },
       { name: ScheduleEntry.name, schema: ScheduleEntrySchema },
-      { name: WorkPolicy.name, schema: WorkPolicySchema },
       { name: AttendanceRecord.name, schema: AttendanceRecordSchema },
     ]),
+    PolicyModule,
     UserClientModule,
   ],
   controllers: [ScheduleController],
