@@ -1,9 +1,5 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import {
-  Schema as MongooseSchema,
-  Types,
-  type HydratedDocument,
-} from "mongoose";
+import type { HydratedDocument } from "mongoose";
 
 export type AttendanceQrTokenDocument = HydratedDocument<AttendanceQrToken>;
 
@@ -15,12 +11,7 @@ export class AttendanceQrToken {
   date!: Date;
   @Prop({ required: true })
   expires_at!: Date;
-  @Prop({ default: false })
-  used!: boolean;
-  @Prop({ type: MongooseSchema.Types.ObjectId })
-  used_by?: Types.ObjectId;
-  @Prop()
-  used_at?: Date;
 }
 export const AttendanceQrTokenSchema =
   SchemaFactory.createForClass(AttendanceQrToken);
+AttendanceQrTokenSchema.index({ expires_at: 1 }, { expireAfterSeconds: 0 });

@@ -47,19 +47,19 @@ export class AttendanceService {
     try {
       const userId = authenticatedUserId(user);
       const now = new Date();
+      const today = this.vietnamDate(now);
       const candidate = await this.tokens.findOne({
         token: dto.token,
-        used: false,
+        date: today,
         expires_at: { $gt: now },
       });
       if (!candidate) {
         throw new BadRequestException({
           success: false,
-          message: "Mã QR không hợp lệ, đã sử dụng hoặc hết hạn",
+          message: "Mã QR không hợp lệ hoặc hết hạn",
         });
       }
 
-      const today = this.vietnamDate(now);
       const requests = await this.requests.find({
         employee_id: userId,
         status: "approved",
@@ -89,39 +89,89 @@ export class AttendanceService {
         });
       }
 
-      const consumedAt = new Date();
-      const token = await this.tokens.findOneAndUpdate(
-        {
-          _id: candidate._id,
-          token: dto.token,
-          used: false,
-          expires_at: { $gt: consumedAt },
-        },
-        { $set: { used: true, used_by: userId, used_at: consumedAt } },
-        { new: true },
-      );
-      if (!token) {
+      if (this.hasUsedToken(record, candidate._id)) {
         throw new BadRequestException({
           success: false,
-          message: "Mã QR không hợp lệ, đã sử dụng hoặc hết hạn",
+          message: "Bạn đã sử dụng mã QR này để chấm công",
         });
       }
 
+      const scannedAt = new Date();
       if (!record) {
-        record = await this.attendance.create({
-          employee_id: userId,
-          date: today,
-          schedule_type: "office",
-          check_in_at: consumedAt,
-          source: "qr",
-          check_in_token_id: token._id,
-        });
+        try {
+          record = await this.attendance.findOneAndUpdate(
+            {
+              employee_id: userId,
+              date: today,
+              source: "qr",
+              check_in_at: { $exists: false },
+              check_in_token_id: { $ne: candidate._id },
+              check_out_at: { $exists: false },
+              check_out_token_id: { $ne: candidate._id },
+            },
+            {
+              $set: {
+                schedule_type: "office",
+                check_in_at: scannedAt,
+                check_in_token_id: candidate._id,
+              },
+              $setOnInsert: {
+                employee_id: userId,
+                date: today,
+                source: "qr",
+              },
+            },
+            {
+              new: true,
+              upsert: true,
+              runValidators: true,
+              setDefaultsOnInsert: true,
+            },
+          );
+        } catch (error) {
+          if (this.isDuplicateKeyError(error)) {
+            throw new BadRequestException({
+              success: false,
+              message: "Bạn đã check-in hoặc đã sử dụng mã QR này",
+            });
+          }
+          throw error;
+        }
+        if (!record) {
+          throw new BadRequestException({
+            success: false,
+            message: "Trạng thái chấm công đã thay đổi, vui lòng thử lại",
+          });
+        }
         return { success: true, message: "Check-in thành công", data: record };
       }
-      record.check_out_at = consumedAt;
-      record.check_out_token_id = token._id;
-      await record.save();
-      return { success: true, message: "Check-out thành công", data: record };
+
+      const checkedOut = await this.attendance.findOneAndUpdate(
+        {
+          _id: record._id,
+          check_out_at: { $exists: false },
+          check_in_token_id: { $ne: candidate._id },
+          check_out_token_id: { $ne: candidate._id },
+        },
+        {
+          $set: {
+            check_out_at: scannedAt,
+            check_out_token_id: candidate._id,
+          },
+        },
+        { new: true, runValidators: true },
+      );
+      if (!checkedOut) {
+        throw new BadRequestException({
+          success: false,
+          message: "Trạng thái chấm công đã thay đổi, vui lòng thử lại",
+        });
+      }
+      return {
+        success: true,
+        message: "Check-out thành công",
+        data: checkedOut,
+      };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       this.fail("Lỗi hệ thống");
@@ -184,6 +234,23 @@ export class AttendanceService {
     );
     return new Date(
       Date.UTC(local.getFullYear(), local.getMonth(), local.getDate()),
+    );
+  }
+
+  private hasUsedToken(record: any, tokenId: unknown): boolean {
+    if (!record) return false;
+    const expected = String(tokenId);
+    return [record.check_in_token_id, record.check_out_token_id].some(
+      (usedTokenId) => usedTokenId && String(usedTokenId) === expected,
+    );
+  }
+
+  private isDuplicateKeyError(error: unknown): boolean {
+    return (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: unknown }).code === 11000
     );
   }
 

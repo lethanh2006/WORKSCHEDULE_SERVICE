@@ -1,7 +1,7 @@
 import type { AuthenticatedUser } from "../../common/interfaces/authenticated-user.interface";
 import { AttendanceService } from "./attendance.service";
 
-describe("AttendanceService - consume QR sau khi kiểm tra điều kiện", () => {
+describe("AttendanceService - QR dùng chung theo từng nhân viên", () => {
   const user: AuthenticatedUser = {
     _id: "507f1f77bcf86cd799439011",
     role: "employee",
@@ -12,21 +12,27 @@ describe("AttendanceService - consume QR sau khi kiểm tra điều kiện", () 
   function createService(options?: {
     office?: object | null;
     record?: object | null;
-    consumed?: object | null;
+    write?: object | null;
+    writeError?: unknown;
   }) {
     const candidate = { _id: tokenId, token: "valid-token" };
     const tokens = {
       findOne: jest.fn().mockResolvedValue(candidate),
-      findOneAndUpdate: jest
-        .fn()
-        .mockResolvedValue(
-          options?.consumed === undefined ? candidate : options.consumed,
-        ),
     };
-    const createdRecord = { _id: "attendance-id" };
+    const createdRecord = {
+      _id: "attendance-id",
+      check_in_token_id: tokenId,
+    };
+    const writeResult =
+      options?.write === undefined ? createdRecord : options.write;
     const attendance = {
       findOne: jest.fn().mockResolvedValue(options?.record ?? null),
-      create: jest.fn().mockResolvedValue(createdRecord),
+      findOneAndUpdate: options?.writeError
+        ? jest
+            .fn()
+            .mockRejectedValueOnce(options.writeError)
+            .mockResolvedValueOnce(writeResult)
+        : jest.fn().mockResolvedValue(writeResult),
     };
     const entries = {
       findOne: jest
@@ -55,17 +61,17 @@ describe("AttendanceService - consume QR sau khi kiểm tra điều kiện", () 
     };
   }
 
-  it("không consume token khi nhân viên không có lịch văn phòng được duyệt", async () => {
+  it("không ghi chấm công khi nhân viên không có lịch văn phòng được duyệt", async () => {
     const { service, tokens, attendance } = createService({ office: null });
 
     await expect(
       service.scan({ token: "valid-token" }, user),
     ).rejects.toMatchObject({ status: 400 });
-    expect(tokens.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(tokens.findOne).toHaveBeenCalledTimes(1);
     expect(attendance.findOne).not.toHaveBeenCalled();
   });
 
-  it("không consume token khi nhân viên đã check-out", async () => {
+  it("không ghi thêm khi nhân viên đã check-out", async () => {
     const { service, tokens } = createService({
       record: { check_out_at: new Date() },
     });
@@ -73,10 +79,10 @@ describe("AttendanceService - consume QR sau khi kiểm tra điều kiện", () 
     await expect(
       service.scan({ token: "valid-token" }, user),
     ).rejects.toMatchObject({ status: 400 });
-    expect(tokens.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(tokens.findOne).toHaveBeenCalledTimes(1);
   });
 
-  it("consume bằng điều kiện atomic sau eligibility rồi mới tạo check-in", async () => {
+  it("ghi check-in nguyên tử mà không đánh dấu token dùng toàn cục", async () => {
     const { service, tokens, attendance, entries, candidate, createdRecord } =
       createService();
 
@@ -88,40 +94,113 @@ describe("AttendanceService - consume QR sau khi kiểm tra điều kiện", () 
       },
     );
 
-    expect(tokens.findOneAndUpdate).toHaveBeenCalledWith(
+    expect(tokens.findOne).toHaveBeenCalledWith({
+      token: "valid-token",
+      date: expect.any(Date),
+      expires_at: { $gt: expect.any(Date) },
+    });
+    expect(attendance.findOneAndUpdate).toHaveBeenCalledWith(
       {
-        _id: candidate._id,
-        token: "valid-token",
-        used: false,
-        expires_at: { $gt: expect.any(Date) },
+        employee_id: user._id,
+        date: expect.any(Date),
+        source: "qr",
+        check_in_at: { $exists: false },
+        check_in_token_id: { $ne: candidate._id },
+        check_out_at: { $exists: false },
+        check_out_token_id: { $ne: candidate._id },
       },
       {
         $set: {
-          used: true,
-          used_by: user._id,
-          used_at: expect.any(Date),
+          schedule_type: "office",
+          check_in_at: expect.any(Date),
+          check_in_token_id: candidate._id,
+        },
+        $setOnInsert: {
+          employee_id: user._id,
+          date: expect.any(Date),
+          source: "qr",
         },
       },
-      { new: true },
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      },
     );
     expect(entries.findOne.mock.invocationCallOrder[0]).toBeLessThan(
-      tokens.findOneAndUpdate.mock.invocationCallOrder[0],
+      attendance.findOneAndUpdate.mock.invocationCallOrder[0],
     );
     expect(attendance.findOne.mock.invocationCallOrder[0]).toBeLessThan(
-      tokens.findOneAndUpdate.mock.invocationCallOrder[0],
-    );
-    expect(tokens.findOneAndUpdate.mock.invocationCallOrder[0]).toBeLessThan(
-      attendance.create.mock.invocationCallOrder[0],
+      attendance.findOneAndUpdate.mock.invocationCallOrder[0],
     );
   });
 
-  it("không ghi điểm danh nếu token bị consume bởi request cạnh tranh", async () => {
-    const { service, tokens, attendance } = createService({ consumed: null });
+  it("cho hai nhân viên dùng chung một token để check-in", async () => {
+    const { service, tokens, attendance } = createService();
+    const anotherUser: AuthenticatedUser = {
+      _id: "507f1f77bcf86cd799439099",
+      role: "employee",
+    };
+
+    await expect(service.scan({ token: "valid-token" }, user)).resolves.toEqual(
+      expect.objectContaining({ success: true }),
+    );
+    await expect(
+      service.scan({ token: "valid-token" }, anotherUser),
+    ).resolves.toEqual(expect.objectContaining({ success: true }));
+
+    expect(tokens.findOne).toHaveBeenCalledTimes(2);
+    expect(attendance.findOneAndUpdate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ employee_id: anotherUser._id }),
+      expect.any(Object),
+      expect.any(Object),
+    );
+  });
+
+  it("không cho một nhân viên dùng lại cùng token để check-out", async () => {
+    const { service, attendance } = createService({
+      record: {
+        _id: "attendance-id",
+        check_in_at: new Date(),
+        check_in_token_id: tokenId,
+      },
+    });
 
     await expect(
       service.scan({ token: "valid-token" }, user),
     ).rejects.toMatchObject({ status: 400 });
-    expect(tokens.findOneAndUpdate).toHaveBeenCalledTimes(1);
-    expect(attendance.create).not.toHaveBeenCalled();
+    expect(attendance.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("lỗi ghi chấm công không làm mất token và có thể thử lại", async () => {
+    const { service, tokens, attendance } = createService({
+      writeError: new Error("mongo error"),
+    });
+
+    await expect(
+      service.scan({ token: "valid-token" }, user),
+    ).rejects.toMatchObject({ status: 500 });
+    await expect(service.scan({ token: "valid-token" }, user)).resolves.toEqual(
+      expect.objectContaining({ success: true }),
+    );
+
+    expect(tokens.findOne).toHaveBeenCalledTimes(2);
+    expect(attendance.findOneAndUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("trả lỗi nghiệp vụ khi hai request check-in cạnh tranh", async () => {
+    const duplicateKeyError = Object.assign(new Error("duplicate key"), {
+      code: 11000,
+    });
+    const { service, attendance } = createService({
+      writeError: duplicateKeyError,
+    });
+
+    await expect(
+      service.scan({ token: "valid-token" }, user),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(attendance.findOneAndUpdate).toHaveBeenCalledTimes(1);
   });
 });
