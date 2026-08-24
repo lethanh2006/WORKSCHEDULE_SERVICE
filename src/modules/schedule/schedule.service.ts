@@ -194,41 +194,9 @@ export class ScheduleService {
           message: normalized.message,
         });
       }
-      const inserted = normalized.entries.map((entry) => ({
-        request_id: id,
-        date: entry.date,
-        type: entry.type,
-        period: entry.period,
-        note: entry.note,
-      }));
       await this.replaceScheduleEntries(id, normalized.entries);
       if (request.status === "approved") {
-        const end = new Date(request.week_start);
-        end.setDate(end.getDate() + 7);
-        await this.attendance.deleteMany({
-          employee_id: request.employee_id,
-          source: "schedule",
-          date: { $gte: request.week_start, $lt: end },
-        });
-        const remote = inserted.filter((entry) => entry.type === "remote");
-        if (remote.length > 0) {
-          await this.attendance.insertMany(
-            remote.map((entry) => {
-              const { checkIn, checkOut } = this.remoteTimes(
-                entry.date,
-                entry.period,
-              );
-              return {
-                employee_id: request.employee_id,
-                date: entry.date,
-                schedule_type: "remote",
-                source: "schedule",
-                check_in_at: checkIn,
-                check_out_at: checkOut,
-              };
-            }),
-          );
-        }
+        await this.syncScheduleAttendance(request, normalized.entries);
       }
       return { success: true, message: "Updated successfully" };
     } catch (error) {
@@ -295,14 +263,16 @@ export class ScheduleService {
 
   async approve(id: string, user: AuthenticatedUser) {
     try {
-      const request = await this.requests.findById(id);
-      if (!request || request.status !== "pending") {
+      const approved = await this.approveAndSyncAttendance(
+        id,
+        authenticatedUserId(user),
+      );
+      if (!approved) {
         throw new BadRequestException({
           success: false,
           message: "Invalid or missing pending request",
         });
       }
-      await this.approveSideEffects(id, authenticatedUserId(user));
       return { success: true, message: "Approved successfully" };
     } catch (error) {
       this.rethrowOrFail(error, "Server Error");
@@ -315,18 +285,24 @@ export class ScheduleService {
     user: AuthenticatedUser,
   ) {
     try {
-      const request = await this.requests.findById(id);
-      if (!request || request.status !== "pending") {
+      const request = await this.requests.findOneAndUpdate(
+        { _id: id, status: "pending" },
+        {
+          $set: {
+            status: "rejected",
+            reject_reason: dto.reason,
+            reviewed_by: authenticatedUserId(user),
+            reviewed_at: new Date(),
+          },
+        },
+        { new: true, runValidators: true },
+      );
+      if (!request) {
         throw new BadRequestException({
           success: false,
           message: "Invalid or missing pending request",
         });
       }
-      request.status = "rejected";
-      request.reject_reason = dto.reason;
-      request.reviewed_by = authenticatedUserId(user);
-      request.reviewed_at = new Date();
-      await request.save();
       return { success: true, message: "Rejected successfully" };
     } catch (error) {
       this.rethrowOrFail(error, "Server Error");
@@ -343,9 +319,7 @@ export class ScheduleService {
       }
       const reviewer = authenticatedUserId(user);
       for (const id of dto.ids) {
-        const request = await this.requests.findById(id);
-        if (request?.status === "pending")
-          await this.approveSideEffects(id, reviewer);
+        await this.approveAndSyncAttendance(id, reviewer);
       }
       return { success: true, message: "Bulk approval complete" };
     } catch (error) {
@@ -482,35 +456,37 @@ export class ScheduleService {
     }
   }
 
-  private async approveSideEffects(
+  private async approveAndSyncAttendance(
     id: string,
     reviewer: string,
-  ): Promise<void> {
-    const request = await this.requests.findById(id);
-    if (!request) return;
-    request.status = "approved";
-    request.reviewed_by = reviewer;
-    request.reviewed_at = new Date();
-    await request.save();
-    const remote = await this.entries.find({ request_id: id, type: "remote" });
-    if (remote.length > 0) {
-      await this.attendance.insertMany(
-        remote.map((entry) => {
-          const { checkIn, checkOut } = this.remoteTimes(
-            entry.date,
-            entry.period,
-          );
-          return {
-            employee_id: request.employee_id,
-            date: entry.date,
-            schedule_type: "remote",
-            source: "schedule",
-            check_in_at: checkIn,
-            check_out_at: checkOut,
-          };
-        }),
-      );
+  ): Promise<boolean> {
+    let request = await this.requests.findById(id);
+    if (!request || !["pending", "approved"].includes(request.status)) {
+      return false;
     }
+
+    if (request.status === "pending") {
+      const transitioned = await this.requests.findOneAndUpdate(
+        { _id: id, status: "pending" },
+        {
+          $set: {
+            status: "approved",
+            reviewed_by: reviewer,
+            reviewed_at: new Date(),
+          },
+        },
+        { new: true, runValidators: true },
+      );
+      if (transitioned) {
+        request = transitioned;
+      } else {
+        request = await this.requests.findOne({ _id: id, status: "approved" });
+        if (!request) return false;
+      }
+    }
+
+    await this.syncScheduleAttendance(request);
+    return true;
   }
 
   private async replaceScheduleEntries(
@@ -538,6 +514,61 @@ export class ScheduleService {
     await this.entries.deleteMany({
       request_id: requestId,
       date: { $nin: replacement.map((entry) => entry.date) },
+    });
+  }
+
+  private async syncScheduleAttendance(
+    request: any,
+    scheduleEntries?: NormalizedScheduleEntry[],
+  ): Promise<void> {
+    const remote = scheduleEntries
+      ? scheduleEntries.filter((entry) => entry.type === "remote")
+      : await this.entries.find({ request_id: request._id, type: "remote" });
+
+    if (remote.length > 0) {
+      await this.attendance.bulkWrite(
+        remote.map((entry) => {
+          const { checkIn, checkOut } = this.remoteTimes(
+            entry.date,
+            entry.period,
+          );
+          return {
+            updateOne: {
+              filter: {
+                employee_id: request.employee_id,
+                date: entry.date,
+                source: "schedule",
+              },
+              update: {
+                $set: {
+                  schedule_type: "remote",
+                  check_in_at: checkIn,
+                  check_out_at: checkOut,
+                },
+                $setOnInsert: {
+                  employee_id: request.employee_id,
+                  date: entry.date,
+                  source: "schedule",
+                },
+              },
+              upsert: true,
+            },
+          };
+        }),
+      );
+    }
+
+    const start = new Date(request.week_start);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 7);
+    await this.attendance.deleteMany({
+      employee_id: request.employee_id,
+      source: "schedule",
+      date: {
+        $gte: start,
+        $lt: end,
+        $nin: remote.map((entry) => entry.date),
+      },
     });
   }
 
