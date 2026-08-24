@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createHmac } from "node:crypto";
 import type { ForwardedRequestContext } from "../../common/utils/request.util";
@@ -12,6 +12,7 @@ const FORBIDDEN_INTERNAL_SECRETS = new Set([
 
 @Injectable()
 export class UserClientService {
+  private readonly logger = new Logger(UserClientService.name);
   private readonly baseUrl: string;
   private readonly userInternalSecret: string;
 
@@ -58,8 +59,12 @@ export class UserClientService {
         ...row,
         employee: map.get(String(row.employee_id)) ?? null,
       }));
-    } catch (error) {
-      console.error("Error fetching user from user service:", error);
+    } catch (error: unknown) {
+      this.logger.warn({
+        "event.name": "user.directory.enrichment.skipped",
+        "exception.type":
+          error instanceof Error ? error.name : "UnknownError",
+      });
       return normalized;
     }
   }
