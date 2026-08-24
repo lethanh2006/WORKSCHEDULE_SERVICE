@@ -30,6 +30,7 @@ import {
   BulkApproveScheduleDto,
   CreateScheduleRequestDto,
   RejectScheduleRequestDto,
+  ResubmitScheduleRequestDto,
   UpdateScheduleEntriesDto,
 } from "./dto/schedule.dto";
 
@@ -101,38 +102,7 @@ export class ScheduleService {
         });
       }
 
-      if (user.role?.toLowerCase() !== "admin") {
-        const policy = await this.policies.getActivePolicy();
-        const now = new Date();
-        if (
-          policy.locked ||
-          now < policy.registration_start ||
-          now > policy.registration_end
-        ) {
-          throw new BadRequestException({
-            success: false,
-            message: "Ngoài khoảng thời gian đăng ký lịch làm việc",
-          });
-        }
-        const weekStart = new Date(dto.week_start);
-        weekStart.setHours(0, 0, 0, 0);
-        const currentMonday = new Date(now);
-        const day = currentMonday.getDay();
-        currentMonday.setDate(
-          currentMonday.getDate() - (day === 0 ? 6 : day - 1),
-        );
-        currentMonday.setHours(0, 0, 0, 0);
-        const maximum = new Date(currentMonday);
-        maximum.setDate(maximum.getDate() + 28);
-        maximum.setHours(0, 0, 0, 0);
-        if (weekStart > maximum) {
-          throw new BadRequestException({
-            success: false,
-            message:
-              "Không được phép đăng ký lịch làm việc quá xa trong tương lai (tối đa 4 tuần tới).",
-          });
-        }
-      }
+      await this.validateRegistrationPolicy(dto.week_start, user);
 
       const request = new this.requests({
         employee_id: employeeId,
@@ -156,6 +126,74 @@ export class ScheduleService {
         throw error;
       }
       return { success: true, data: request };
+    } catch (error) {
+      this.rethrowOrFail(error, "Server Error");
+    }
+  }
+
+  async resubmit(
+    id: string,
+    dto: ResubmitScheduleRequestDto,
+    user: AuthenticatedUser,
+  ) {
+    try {
+      const employeeId = authenticatedUserId(user);
+      const request = await this.requests.findOne({
+        _id: id,
+        employee_id: employeeId,
+      });
+      if (!request) {
+        throw new NotFoundException({
+          success: false,
+          message: "Schedule request not found",
+        });
+      }
+      if (request.status !== "rejected") {
+        throw new BadRequestException({
+          success: false,
+          message: "Chỉ có thể gửi lại lịch đã bị từ chối",
+        });
+      }
+
+      const normalized = normalizeScheduleEntries(
+        dto.entries,
+        new Date(request.week_start),
+      );
+      if (!normalized.entries) {
+        throw new BadRequestException({
+          success: false,
+          message: normalized.message,
+        });
+      }
+      await this.validateRegistrationPolicy(request.week_start, user);
+
+      await this.replaceScheduleEntries(id, normalized.entries);
+      const resubmitted = await this.requests.findOneAndUpdate(
+        { _id: id, employee_id: employeeId, status: "rejected" },
+        {
+          $set: {
+            status: "pending",
+            submitted_at: new Date(),
+          },
+          $unset: {
+            reject_reason: "",
+            reviewed_by: "",
+            reviewed_at: "",
+          },
+        },
+        { new: true, runValidators: true },
+      );
+      if (!resubmitted) {
+        throw new BadRequestException({
+          success: false,
+          message: "Lịch đã được xử lý, không thể gửi lại",
+        });
+      }
+      return {
+        success: true,
+        message: "Resubmitted successfully",
+        data: resubmitted,
+      };
     } catch (error) {
       this.rethrowOrFail(error, "Server Error");
     }
@@ -487,6 +525,43 @@ export class ScheduleService {
 
     await this.syncScheduleAttendance(request);
     return true;
+  }
+
+  private async validateRegistrationPolicy(
+    weekStartValue: string | Date,
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    if (user.role?.toLowerCase() === "admin") return;
+
+    const policy = await this.policies.getActivePolicy();
+    const now = new Date();
+    if (
+      policy.locked ||
+      now < policy.registration_start ||
+      now > policy.registration_end
+    ) {
+      throw new BadRequestException({
+        success: false,
+        message: "Ngoài khoảng thời gian đăng ký lịch làm việc",
+      });
+    }
+
+    const weekStart = new Date(weekStartValue);
+    weekStart.setHours(0, 0, 0, 0);
+    const currentMonday = new Date(now);
+    const day = currentMonday.getDay();
+    currentMonday.setDate(currentMonday.getDate() - (day === 0 ? 6 : day - 1));
+    currentMonday.setHours(0, 0, 0, 0);
+    const maximum = new Date(currentMonday);
+    maximum.setDate(maximum.getDate() + 28);
+    maximum.setHours(0, 0, 0, 0);
+    if (weekStart > maximum) {
+      throw new BadRequestException({
+        success: false,
+        message:
+          "Không được phép đăng ký lịch làm việc quá xa trong tương lai (tối đa 4 tuần tới).",
+      });
+    }
   }
 
   private async replaceScheduleEntries(

@@ -228,3 +228,192 @@ describe("ScheduleService - duyệt lịch và đồng bộ chấm công", () =>
     expect(attendance.deleteMany).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("ScheduleService - nhân viên gửi lại lịch bị từ chối", () => {
+  const requestId = "507f1f77bcf86cd799439021";
+  const employee: AuthenticatedUser = {
+    _id: "507f1f77bcf86cd799439022",
+    role: "user",
+  };
+  const weekStart = new Date("2026-08-31T00:00:00.000Z");
+  const dto = {
+    entries: [
+      {
+        date: "2026-08-31T00:00:00.000Z",
+        type: "office" as const,
+        period: "full_day" as const,
+        note: "Đã điều chỉnh",
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-08-24T03:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function createResubmitService(options?: {
+    request?: object | null;
+    policy?: object;
+    resubmitted?: object | null;
+  }) {
+    const rejected = {
+      _id: requestId,
+      employee_id: employee._id,
+      week_start: weekStart,
+      status: "rejected",
+      reject_reason: "Cần sửa lịch",
+      reviewed_by: "507f1f77bcf86cd799439023",
+      reviewed_at: new Date("2026-08-23T00:00:00.000Z"),
+    };
+    const resubmitted = {
+      ...rejected,
+      status: "pending",
+      reject_reason: undefined,
+      reviewed_by: undefined,
+      reviewed_at: undefined,
+    };
+    const requests = {
+      findOne: jest
+        .fn()
+        .mockResolvedValue(
+          options?.request === undefined ? rejected : options.request,
+        ),
+      findOneAndUpdate: jest
+        .fn()
+        .mockResolvedValue(
+          options?.resubmitted === undefined
+            ? resubmitted
+            : options.resubmitted,
+        ),
+    };
+    const entries = {
+      bulkWrite: jest.fn().mockResolvedValue({}),
+      deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
+    };
+    const policies = {
+      getActivePolicy: jest.fn().mockResolvedValue(
+        options?.policy ?? {
+          locked: false,
+          registration_start: new Date("2026-08-01T00:00:00.000Z"),
+          registration_end: new Date("2026-09-30T00:00:00.000Z"),
+        },
+      ),
+    };
+    const service = new ScheduleService(
+      requests as any,
+      entries as any,
+      {} as any,
+      {} as any,
+      policies as any,
+    );
+
+    return { service, requests, entries, policies, rejected, resubmitted };
+  }
+
+  it("thay lịch, reset metadata duyệt và chuyển rejected về pending", async () => {
+    const { service, requests, entries, policies, resubmitted } =
+      createResubmitService();
+
+    await expect(service.resubmit(requestId, dto, employee)).resolves.toEqual({
+      success: true,
+      message: "Resubmitted successfully",
+      data: resubmitted,
+    });
+
+    expect(requests.findOne).toHaveBeenCalledWith({
+      _id: requestId,
+      employee_id: employee._id,
+    });
+    expect(policies.getActivePolicy).toHaveBeenCalledTimes(1);
+    expect(entries.bulkWrite).toHaveBeenCalledTimes(1);
+    expect(entries.deleteMany).toHaveBeenCalledTimes(1);
+    expect(requests.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: requestId, employee_id: employee._id, status: "rejected" },
+      {
+        $set: {
+          status: "pending",
+          submitted_at: expect.any(Date),
+        },
+        $unset: {
+          reject_reason: "",
+          reviewed_by: "",
+          reviewed_at: "",
+        },
+      },
+      { new: true, runValidators: true },
+    );
+    expect(entries.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      requests.findOneAndUpdate.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("không cho gửi lại lịch không thuộc nhân viên", async () => {
+    const { service, requests, entries, policies } = createResubmitService({
+      request: null,
+    });
+
+    await expect(
+      service.resubmit(requestId, dto, employee),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(policies.getActivePolicy).not.toHaveBeenCalled();
+    expect(entries.bulkWrite).not.toHaveBeenCalled();
+    expect(requests.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("chỉ cho gửi lại request đang ở trạng thái rejected", async () => {
+    const { service, requests, entries } = createResubmitService({
+      request: {
+        _id: requestId,
+        employee_id: employee._id,
+        week_start: weekStart,
+        status: "pending",
+      },
+    });
+
+    await expect(
+      service.resubmit(requestId, dto, employee),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(entries.bulkWrite).not.toHaveBeenCalled();
+    expect(requests.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("giữ nguyên request khi policy đang khóa", async () => {
+    const { service, requests, entries } = createResubmitService({
+      policy: {
+        locked: true,
+        registration_start: new Date("2026-08-01T00:00:00.000Z"),
+        registration_end: new Date("2026-09-30T00:00:00.000Z"),
+      },
+    });
+
+    await expect(
+      service.resubmit(requestId, dto, employee),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(entries.bulkWrite).not.toHaveBeenCalled();
+    expect(requests.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("không cập nhật request nếu entries gửi lại không hợp lệ", async () => {
+    const { service, requests, entries, policies } = createResubmitService();
+    const invalidDto = {
+      entries: [
+        {
+          ...dto.entries[0],
+          date: "2026-09-14T00:00:00.000Z",
+        },
+      ],
+    };
+
+    await expect(
+      service.resubmit(requestId, invalidDto, employee),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(policies.getActivePolicy).not.toHaveBeenCalled();
+    expect(entries.bulkWrite).not.toHaveBeenCalled();
+    expect(requests.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+});

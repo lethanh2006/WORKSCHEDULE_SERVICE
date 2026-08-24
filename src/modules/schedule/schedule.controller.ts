@@ -21,6 +21,7 @@ import {
   BulkApproveScheduleDto,
   CreateScheduleRequestDto,
   RejectScheduleRequestDto,
+  ResubmitScheduleRequestDto,
   UpdateScheduleEntriesDto,
 } from "./dto/schedule.dto";
 import { ScheduleService } from "./schedule.service";
@@ -111,6 +112,17 @@ export class ScheduleController {
     @Req() request: RequestWithContext,
   ) {
     return this.schedules.create(dto, request.user!);
+  }
+
+  @Post("schedule/requests/:id/resubmit")
+  @HttpCode(200)
+  @Authenticated()
+  resubmit(
+    @Param("id") id: string,
+    @Body() dto: ResubmitScheduleRequestDto,
+    @Req() request: RequestWithContext,
+  ) {
+    return this.schedules.resubmit(id, dto, request.user!);
   }
 
   @Get("schedule/requests/:id")

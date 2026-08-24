@@ -54,6 +54,8 @@ export class UpdateScheduleEntriesDto {
   entries!: ScheduleEntryDto[];
 }
 
+export class ResubmitScheduleRequestDto extends UpdateScheduleEntriesDto {}
+
 export class RejectScheduleRequestDto {
   @IsString()
   @IsNotEmpty()
