@@ -5,16 +5,18 @@ import { RolesGuard } from "../common/guards/roles.guard";
 import { HttpLoggingInterceptor } from "../common/interceptors/http-logging.interceptor";
 import { RequestIdMiddleware } from "../common/middleware/request-id.middleware";
 import { StructuredLoggerService } from "../common/observability/structured-logger.service";
+import { GatewaySignatureService } from "../common/security/gateway-signature.service";
 
 @Global()
 @Module({
   providers: [
     StructuredLoggerService,
     RolesGuard,
+    GatewaySignatureService,
     { provide: APP_INTERCEPTOR, useClass: HttpLoggingInterceptor },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
   ],
-  exports: [StructuredLoggerService, RolesGuard],
+  exports: [StructuredLoggerService, RolesGuard, GatewaySignatureService],
 })
 export class CoreModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

@@ -13,10 +13,14 @@ import {
   parseAuthenticatedUser,
   type RequestWithAuthenticatedUser,
 } from "../interfaces/authenticated-user.interface";
+import { GatewaySignatureService } from "../security/gateway-signature.service";
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly signatureService: GatewaySignatureService,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context
@@ -36,6 +40,14 @@ export class RolesGuard implements CanActivate {
     if (typeof encoded !== "string") {
       throw new UnauthorizedException({ message: "Unauthorized" });
     }
+
+    this.signatureService.assertTrusted({
+      context: `${request.method.toUpperCase()}:${request.path}`,
+      payload: encoded,
+      requestId: this.headerValue(request.headers["x-request-id"]),
+      signature: this.headerValue(request.headers["x-user-signature"]),
+      timestamp: this.headerValue(request.headers["x-user-timestamp"]),
+    });
     let user: AuthenticatedUser | null;
     try {
       user = parseAuthenticatedUser(
@@ -62,5 +74,11 @@ export class RolesGuard implements CanActivate {
       });
     }
     return true;
+  }
+
+  private headerValue(
+    value: string | string[] | undefined,
+  ): string | undefined {
+    return typeof value === "string" ? value : undefined;
   }
 }
