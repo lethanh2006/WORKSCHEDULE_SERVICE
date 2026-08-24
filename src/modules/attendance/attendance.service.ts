@@ -47,17 +47,18 @@ export class AttendanceService {
     try {
       const userId = authenticatedUserId(user);
       const now = new Date();
-      const token = await this.tokens.findOneAndUpdate(
-        { token: dto.token, used: false, expires_at: { $gt: now } },
-        { $set: { used: true, used_by: userId, used_at: now } },
-        { new: true },
-      );
-      if (!token) {
+      const candidate = await this.tokens.findOne({
+        token: dto.token,
+        used: false,
+        expires_at: { $gt: now },
+      });
+      if (!candidate) {
         throw new BadRequestException({
           success: false,
           message: "Mã QR không hợp lệ, đã sử dụng hoặc hết hạn",
         });
       }
+
       const today = this.vietnamDate(now);
       const requests = await this.requests.find({
         employee_id: userId,
@@ -75,29 +76,49 @@ export class AttendanceService {
             "Bạn không có lịch làm việc tại văn phòng được duyệt cho ngày hôm nay",
         });
       }
+
       let record = await this.attendance.findOne({
         employee_id: userId,
         date: today,
         source: "qr",
       });
-      if (!record) {
-        record = await this.attendance.create({
-          employee_id: userId,
-          date: today,
-          schedule_type: "office",
-          check_in_at: now,
-          source: "qr",
-          check_in_token_id: token._id,
-        });
-        return { success: true, message: "Check-in thành công", data: record };
-      }
-      if (record.check_out_at) {
+      if (record?.check_out_at) {
         throw new BadRequestException({
           success: false,
           message: "Bạn đã check-out hôm nay rồi",
         });
       }
-      record.check_out_at = now;
+
+      const consumedAt = new Date();
+      const token = await this.tokens.findOneAndUpdate(
+        {
+          _id: candidate._id,
+          token: dto.token,
+          used: false,
+          expires_at: { $gt: consumedAt },
+        },
+        { $set: { used: true, used_by: userId, used_at: consumedAt } },
+        { new: true },
+      );
+      if (!token) {
+        throw new BadRequestException({
+          success: false,
+          message: "Mã QR không hợp lệ, đã sử dụng hoặc hết hạn",
+        });
+      }
+
+      if (!record) {
+        record = await this.attendance.create({
+          employee_id: userId,
+          date: today,
+          schedule_type: "office",
+          check_in_at: consumedAt,
+          source: "qr",
+          check_in_token_id: token._id,
+        });
+        return { success: true, message: "Check-in thành công", data: record };
+      }
+      record.check_out_at = consumedAt;
       record.check_out_token_id = token._id;
       await record.save();
       return { success: true, message: "Check-out thành công", data: record };
