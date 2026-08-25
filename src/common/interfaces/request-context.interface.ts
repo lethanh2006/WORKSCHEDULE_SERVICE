@@ -2,7 +2,6 @@ import type { RequestWithAuthenticatedUser } from "./authenticated-user.interfac
 
 export interface RequestContext {
   requestId: string;
-  startedAt: bigint;
 }
 
 export interface RequestWithContext extends RequestWithAuthenticatedUser {
