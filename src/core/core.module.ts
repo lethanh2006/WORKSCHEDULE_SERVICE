@@ -1,4 +1,5 @@
 import { Global, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
 import { GlobalExceptionFilter } from '../common/filters/global-exception.filter';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -9,6 +10,7 @@ import { GatewaySignatureService } from '../common/security/gateway-signature.se
 
 @Global()
 @Module({
+  imports: [ConfigModule],
   providers: [
     StructuredLoggerService,
     TelemetryLifecycleService,
