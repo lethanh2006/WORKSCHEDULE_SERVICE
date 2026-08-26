@@ -14,12 +14,12 @@ import {
 } from '../../common/interfaces/authenticated-user.interface';
 import type { ForwardedRequestContext } from '../../common/utils/request.util';
 import { WorkRequest } from '../../schemas/work-request.schema';
-import { normalizeWorkRequest } from '../../services/workRequestValidator';
 import { UserClientService } from '../user-client/user-client.service';
 import {
   CreateWorkRequestDto,
   RejectWorkRequestDto,
 } from './dto/work-request.dto';
+import { normalizeWorkRequest } from './utils/work-request-validator';
 
 @Injectable()
 export class WorkRequestService {

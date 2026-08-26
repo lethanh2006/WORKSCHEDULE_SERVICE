@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import type { WorkRequestType } from '../schemas/work-request.schema';
+import type { WorkRequestType } from '../../../schemas/work-request.schema';
 
 const REQUEST_TYPES = new Set([
   'leave',

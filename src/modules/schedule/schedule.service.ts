@@ -21,7 +21,7 @@ import { ScheduleRequest } from '../../schemas/schedule-request.schema';
 import {
   normalizeScheduleEntries,
   type NormalizedScheduleEntry,
-} from '../../services/scheduleEntryValidator';
+} from './utils/schedule-entry-validator';
 import { getWeekStartRange, isMonday, parseIsoWeek } from '../../utils/date';
 import { atVietnamTime } from '../../utils/vietnam-time';
 import { UserClientService } from '../user-client/user-client.service';
