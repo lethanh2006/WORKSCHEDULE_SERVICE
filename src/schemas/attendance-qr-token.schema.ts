@@ -1,9 +1,9 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import type { HydratedDocument } from "mongoose";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import type { HydratedDocument } from 'mongoose';
 
 export type AttendanceQrTokenDocument = HydratedDocument<AttendanceQrToken>;
 
-@Schema({ timestamps: true, collection: "attendanceqrtokens" })
+@Schema({ timestamps: true, collection: 'attendanceqrtokens' })
 export class AttendanceQrToken {
   @Prop({ required: true, unique: true })
   token!: string;

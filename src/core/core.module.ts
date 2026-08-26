@@ -1,11 +1,11 @@
-import { Global, MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
-import { APP_FILTER } from "@nestjs/core";
-import { GlobalExceptionFilter } from "../common/filters/global-exception.filter";
-import { RolesGuard } from "../common/guards/roles.guard";
-import { RequestIdMiddleware } from "../common/middleware/request-id.middleware";
-import { StructuredLoggerService } from "../common/observability/structured-logger.service";
-import { TelemetryLifecycleService } from "../common/observability/telemetry-lifecycle.service";
-import { GatewaySignatureService } from "../common/security/gateway-signature.service";
+import { Global, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { GlobalExceptionFilter } from '../common/filters/global-exception.filter';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { RequestIdMiddleware } from '../common/middleware/request-id.middleware';
+import { StructuredLoggerService } from '../common/observability/structured-logger.service';
+import { TelemetryLifecycleService } from '../common/observability/telemetry-lifecycle.service';
+import { GatewaySignatureService } from '../common/security/gateway-signature.service';
 
 @Global()
 @Module({
@@ -20,6 +20,6 @@ import { GatewaySignatureService } from "../common/security/gateway-signature.se
 })
 export class CoreModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestIdMiddleware).forRoutes("*");
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
   }
 }

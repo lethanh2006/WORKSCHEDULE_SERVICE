@@ -1,13 +1,13 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { createHmac } from "node:crypto";
-import type { ForwardedRequestContext } from "../../common/utils/request.util";
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { createHmac } from 'node:crypto';
+import type { ForwardedRequestContext } from '../../common/utils/request.util';
 
-const DIRECTORY_PATH = "/api/user/user/all";
+const DIRECTORY_PATH = '/api/user/user/all';
 const FORBIDDEN_INTERNAL_SECRETS = new Set([
-  "replace_with_at_least_32_random_characters",
-  "your-super-secret-key-chatapp",
-  "your_jwt_secret_here",
+  'replace_with_at_least_32_random_characters',
+  'your-super-secret-key-chatapp',
+  'your_jwt_secret_here',
 ]);
 
 @Injectable()
@@ -18,10 +18,10 @@ export class UserClientService {
 
   constructor(config: ConfigService) {
     this.baseUrl = (
-      config.get<string>("USER_SERVICE_URL") ?? "http://localhost:5000"
-    ).replace(/\/+$/, "");
+      config.get<string>('USER_SERVICE_URL') ?? 'http://localhost:5000'
+    ).replace(/\/+$/, '');
     this.userInternalSecret = this.requireInternalSecret(
-      config.get<string>("USER_INTERNAL_SECRET"),
+      config.get<string>('USER_INTERNAL_SECRET'),
     );
   }
 
@@ -31,7 +31,7 @@ export class UserClientService {
   ): Promise<any[]> {
     if (rows.length === 0) return rows;
     const normalized = rows.map((row) => {
-      const value = typeof row?.toObject === "function" ? row.toObject() : row;
+      const value = typeof row?.toObject === 'function' ? row.toObject() : row;
       return { ...value, employee: null };
     });
     if (!context.userPayload) return normalized;
@@ -61,9 +61,8 @@ export class UserClientService {
       }));
     } catch (error: unknown) {
       this.logger.warn({
-        "event.name": "user.directory.enrichment.skipped",
-        "exception.type":
-          error instanceof Error ? error.name : "UnknownError",
+        'event.name': 'user.directory.enrichment.skipped',
+        'exception.type': error instanceof Error ? error.name : 'UnknownError',
       });
       return normalized;
     }
@@ -81,7 +80,7 @@ export class UserClientService {
       Buffer.byteLength(secret) < 32 ||
       FORBIDDEN_INTERNAL_SECRETS.has(secret.toLowerCase())
     ) {
-      throw new Error("USER_INTERNAL_SECRET phải có ít nhất 32 byte");
+      throw new Error('USER_INTERNAL_SECRET phải có ít nhất 32 byte');
     }
     return secret;
   }
@@ -92,14 +91,14 @@ export class UserClientService {
   ): Record<string, string> {
     const timestamp = Date.now().toString();
     const context = `GET:${DIRECTORY_PATH}`;
-    const signature = createHmac("sha256", this.userInternalSecret)
+    const signature = createHmac('sha256', this.userInternalSecret)
       .update(`${timestamp}.${requestId}.${payload}.${context}`)
-      .digest("hex");
+      .digest('hex');
     return {
-      "x-request-id": requestId,
-      "x-user-payload": payload,
-      "x-user-timestamp": timestamp,
-      "x-user-signature": signature,
+      'x-request-id': requestId,
+      'x-user-payload': payload,
+      'x-user-timestamp': timestamp,
+      'x-user-signature': signature,
     };
   }
 }

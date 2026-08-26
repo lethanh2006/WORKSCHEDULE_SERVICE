@@ -1,4 +1,4 @@
-import { IsBoolean, IsISO8601, IsOptional } from "class-validator";
+import { IsBoolean, IsISO8601, IsOptional } from 'class-validator';
 
 export class UpdatePolicyDto {
   @IsOptional()

@@ -1,14 +1,14 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import {
   Schema as MongooseSchema,
   Types,
   type HydratedDocument,
-} from "mongoose";
+} from 'mongoose';
 
 export type WorkPolicyDocument = HydratedDocument<WorkPolicy>;
-export const WORK_POLICY_SINGLETON_KEY = "default";
+export const WORK_POLICY_SINGLETON_KEY = 'default';
 
-@Schema({ timestamps: true, collection: "workpolicies" })
+@Schema({ timestamps: true, collection: 'workpolicies' })
 export class WorkPolicy {
   @Prop({
     type: String,
@@ -34,6 +34,6 @@ WorkPolicySchema.index(
   { singleton_key: 1 },
   {
     unique: true,
-    partialFilterExpression: { singleton_key: { $type: "string" } },
+    partialFilterExpression: { singleton_key: { $type: 'string' } },
   },
 );

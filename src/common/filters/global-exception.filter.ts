@@ -3,11 +3,11 @@ import {
   Catch,
   type ExceptionFilter,
   Injectable,
-} from "@nestjs/common";
-import { HttpAdapterHost } from "@nestjs/core";
-import { normalizeRouteTemplate } from "@nrapp/observability";
-import type { RequestWithContext } from "../interfaces/request-context.interface";
-import { StructuredLoggerService } from "../observability/structured-logger.service";
+} from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
+import { normalizeRouteTemplate } from '@nrapp/observability';
+import type { RequestWithContext } from '../interfaces/request-context.interface';
+import { StructuredLoggerService } from '../observability/structured-logger.service';
 
 @Catch()
 @Injectable()
@@ -21,11 +21,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const http = host.switchToHttp();
     const request = http.getRequest<RequestWithContext>();
     const route =
-      typeof request.route?.path === "string"
+      typeof request.route?.path === 'string'
         ? normalizeRouteTemplate(
-            `${request.baseUrl ?? ""}${request.route.path}`,
+            `${request.baseUrl ?? ''}${request.route.path}`,
           )
-        : "unmatched";
+        : 'unmatched';
     const result = this.logger.handleHttpException(exception, {
       requestId: request.requestContext?.requestId,
       method: request.method,

@@ -1,19 +1,19 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import {
   Schema as MongooseSchema,
   Types,
   type HydratedDocument,
-} from "mongoose";
+} from 'mongoose';
 
 export type ScheduleEntryDocument = HydratedDocument<ScheduleEntry>;
-export type ScheduleEntryType = "office" | "remote" | "day_off" | "leave";
-export type WorkPeriod = "full_day" | "morning" | "afternoon";
+export type ScheduleEntryType = 'office' | 'remote' | 'day_off' | 'leave';
+export type WorkPeriod = 'full_day' | 'morning' | 'afternoon';
 
-@Schema({ timestamps: true, collection: "scheduleentries" })
+@Schema({ timestamps: true, collection: 'scheduleentries' })
 export class ScheduleEntry {
   @Prop({
     type: MongooseSchema.Types.ObjectId,
-    ref: "ScheduleRequest",
+    ref: 'ScheduleRequest',
     required: true,
   })
   request_id!: Types.ObjectId;
@@ -21,14 +21,14 @@ export class ScheduleEntry {
   date!: Date;
   @Prop({
     type: String,
-    enum: ["office", "remote", "day_off", "leave"],
+    enum: ['office', 'remote', 'day_off', 'leave'],
     required: true,
   })
   type!: ScheduleEntryType;
   @Prop({
     type: String,
-    enum: ["full_day", "morning", "afternoon"],
-    default: "full_day",
+    enum: ['full_day', 'morning', 'afternoon'],
+    default: 'full_day',
     required: true,
   })
   period!: WorkPeriod;

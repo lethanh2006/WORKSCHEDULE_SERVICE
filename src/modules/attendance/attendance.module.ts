@@ -1,24 +1,24 @@
-import { Module } from "@nestjs/common";
-import { MongooseModule } from "@nestjs/mongoose";
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
 import {
   AttendanceQrToken,
   AttendanceQrTokenSchema,
-} from "../../schemas/attendance-qr-token.schema";
+} from '../../schemas/attendance-qr-token.schema';
 import {
   AttendanceRecord,
   AttendanceRecordSchema,
-} from "../../schemas/attendance-record.schema";
+} from '../../schemas/attendance-record.schema';
 import {
   ScheduleEntry,
   ScheduleEntrySchema,
-} from "../../schemas/schedule-entry.schema";
+} from '../../schemas/schedule-entry.schema';
 import {
   ScheduleRequest,
   ScheduleRequestSchema,
-} from "../../schemas/schedule-request.schema";
-import { UserClientModule } from "../user-client/user-client.module";
-import { AttendanceController } from "./attendance.controller";
-import { AttendanceService } from "./attendance.service";
+} from '../../schemas/schedule-request.schema';
+import { UserClientModule } from '../user-client/user-client.module';
+import { AttendanceController } from './attendance.controller';
+import { AttendanceService } from './attendance.service';
 
 @Module({
   imports: [

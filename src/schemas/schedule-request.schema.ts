@@ -1,13 +1,13 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import {
   Schema as MongooseSchema,
   Types,
   type HydratedDocument,
-} from "mongoose";
+} from 'mongoose';
 
 export type ScheduleRequestDocument = HydratedDocument<ScheduleRequest>;
 
-@Schema({ timestamps: true, collection: "schedulerequests" })
+@Schema({ timestamps: true, collection: 'schedulerequests' })
 export class ScheduleRequest {
   @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
   employee_id!: Types.ObjectId;
@@ -15,10 +15,10 @@ export class ScheduleRequest {
   week_start!: Date;
   @Prop({
     type: String,
-    enum: ["pending", "approved", "rejected"],
-    default: "pending",
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending',
   })
-  status!: "pending" | "approved" | "rejected";
+  status!: 'pending' | 'approved' | 'rejected';
   @Prop()
   submitted_at?: Date;
   @Prop({ type: MongooseSchema.Types.ObjectId })

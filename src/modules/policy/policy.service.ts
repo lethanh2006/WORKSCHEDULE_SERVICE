@@ -2,19 +2,19 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
-} from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import type { Model } from "mongoose";
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import type { Model } from 'mongoose';
 import {
   authenticatedUserId,
   type AuthenticatedUser,
-} from "../../common/interfaces/authenticated-user.interface";
+} from '../../common/interfaces/authenticated-user.interface';
 import {
   WorkPolicy,
   WORK_POLICY_SINGLETON_KEY,
   type WorkPolicyDocument,
-} from "../../schemas/work-policy.schema";
-import { UpdatePolicyDto } from "./dto/update-policy.dto";
+} from '../../schemas/work-policy.schema';
+import { UpdatePolicyDto } from './dto/update-policy.dto';
 
 @Injectable()
 export class PolicyService {
@@ -40,7 +40,7 @@ export class PolicyService {
     if (registrationStart >= registrationEnd) {
       throw new BadRequestException({
         success: false,
-        message: "Thời gian kết thúc đăng ký phải sau thời gian bắt đầu.",
+        message: 'Thời gian kết thúc đăng ký phải sau thời gian bắt đầu.',
       });
     }
 
@@ -50,7 +50,7 @@ export class PolicyService {
         $set: {
           registration_start: registrationStart,
           registration_end: registrationEnd,
-          locked: typeof dto.locked === "boolean" ? dto.locked : current.locked,
+          locked: typeof dto.locked === 'boolean' ? dto.locked : current.locked,
           updated_by: authenticatedUserId(user),
         },
       },
@@ -59,7 +59,7 @@ export class PolicyService {
     if (!policy) {
       throw new InternalServerErrorException({
         success: false,
-        message: "Không thể cập nhật chính sách làm việc.",
+        message: 'Không thể cập nhật chính sách làm việc.',
       });
     }
     return { success: true, data: policy };
@@ -102,7 +102,7 @@ export class PolicyService {
     if (!created) {
       throw new InternalServerErrorException({
         success: false,
-        message: "Không thể khởi tạo chính sách làm việc.",
+        message: 'Không thể khởi tạo chính sách làm việc.',
       });
     }
     return created;
@@ -110,9 +110,9 @@ export class PolicyService {
 
   private isDuplicateKeyError(error: unknown): boolean {
     return (
-      typeof error === "object" &&
+      typeof error === 'object' &&
       error !== null &&
-      "code" in error &&
+      'code' in error &&
       (error as { code?: unknown }).code === 11000
     );
   }

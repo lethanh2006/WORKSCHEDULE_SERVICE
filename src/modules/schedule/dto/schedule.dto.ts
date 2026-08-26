@@ -1,4 +1,4 @@
-import { Type } from "class-transformer";
+import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -10,20 +10,20 @@ import {
   IsString,
   MaxLength,
   ValidateNested,
-} from "class-validator";
+} from 'class-validator';
 import type {
   ScheduleEntryType,
   WorkPeriod,
-} from "../../../schemas/schedule-entry.schema";
+} from '../../../schemas/schedule-entry.schema';
 
 export class ScheduleEntryDto {
   @IsDateString()
   date!: string;
 
-  @IsIn(["office", "remote", "day_off", "leave"])
+  @IsIn(['office', 'remote', 'day_off', 'leave'])
   type!: ScheduleEntryType;
 
-  @IsIn(["full_day", "morning", "afternoon"])
+  @IsIn(['full_day', 'morning', 'afternoon'])
   period!: WorkPeriod;
 
   @IsOptional()
@@ -33,7 +33,7 @@ export class ScheduleEntryDto {
 }
 
 export class CreateScheduleRequestDto {
-  @IsNotEmpty({ message: "week_start không được để trống" })
+  @IsNotEmpty({ message: 'week_start không được để trống' })
   @IsDateString()
   week_start!: string;
 

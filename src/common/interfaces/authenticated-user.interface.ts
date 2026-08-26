@@ -1,4 +1,4 @@
-import type { Request } from "express";
+import type { Request } from 'express';
 
 export interface AuthenticatedUser extends Record<string, unknown> {
   _id?: string;
@@ -13,12 +13,12 @@ export interface RequestWithAuthenticatedUser extends Request {
 export function parseAuthenticatedUser(
   value: unknown,
 ): AuthenticatedUser | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value))
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
     return null;
   const record = value as Record<string, unknown>;
-  const id = typeof record._id === "string" ? record._id : record.id;
-  if (typeof id !== "string" || !id) return null;
-  if (record.role !== undefined && typeof record.role !== "string") return null;
+  const id = typeof record._id === 'string' ? record._id : record.id;
+  if (typeof id !== 'string' || !id) return null;
+  if (record.role !== undefined && typeof record.role !== 'string') return null;
   return record;
 }
 

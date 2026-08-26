@@ -1,16 +1,16 @@
-import { BadRequestException } from "@nestjs/common";
-import type { Model } from "mongoose";
-import type { AuthenticatedUser } from "../../common/interfaces/authenticated-user.interface";
+import { BadRequestException } from '@nestjs/common';
+import type { Model } from 'mongoose';
+import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import {
   WORK_POLICY_SINGLETON_KEY,
   type WorkPolicyDocument,
-} from "../../schemas/work-policy.schema";
-import { PolicyService } from "./policy.service";
+} from '../../schemas/work-policy.schema';
+import { PolicyService } from './policy.service';
 
-describe("PolicyService", () => {
+describe('PolicyService', () => {
   const user: AuthenticatedUser = {
-    _id: "507f1f77bcf86cd799439011",
-    role: "admin",
+    _id: '507f1f77bcf86cd799439011',
+    role: 'admin',
   };
 
   function modelWith(overrides: Record<string, jest.Mock> = {}) {
@@ -21,11 +21,11 @@ describe("PolicyService", () => {
     } as unknown as Model<WorkPolicyDocument>;
   }
 
-  it("nhận một policy cũ làm singleton thay vì tạo policy mặc định mới", async () => {
+  it('nhận một policy cũ làm singleton thay vì tạo policy mặc định mới', async () => {
     const legacy = {
       singleton_key: WORK_POLICY_SINGLETON_KEY,
-      registration_start: new Date("2026-08-01T00:00:00.000Z"),
-      registration_end: new Date("2026-09-01T00:00:00.000Z"),
+      registration_start: new Date('2026-08-01T00:00:00.000Z'),
+      registration_end: new Date('2026-09-01T00:00:00.000Z'),
       locked: false,
     } as unknown as WorkPolicyDocument;
     const findOne = jest.fn().mockResolvedValue(null);
@@ -42,7 +42,7 @@ describe("PolicyService", () => {
     );
   });
 
-  it("tạo atomic policy singleton ở trạng thái khóa khi chưa có dữ liệu", async () => {
+  it('tạo atomic policy singleton ở trạng thái khóa khi chưa có dữ liệu', async () => {
     const created = {
       singleton_key: WORK_POLICY_SINGLETON_KEY,
       locked: true,
@@ -68,12 +68,12 @@ describe("PolicyService", () => {
     );
   });
 
-  it("từ chối cửa sổ đăng ký có thời gian kết thúc không hợp lệ", async () => {
+  it('từ chối cửa sổ đăng ký có thời gian kết thúc không hợp lệ', async () => {
     const current = {
-      _id: "policy-id",
+      _id: 'policy-id',
       singleton_key: WORK_POLICY_SINGLETON_KEY,
-      registration_start: new Date("2026-08-01T00:00:00.000Z"),
-      registration_end: new Date("2026-09-01T00:00:00.000Z"),
+      registration_start: new Date('2026-08-01T00:00:00.000Z'),
+      registration_end: new Date('2026-09-01T00:00:00.000Z'),
       locked: false,
     } as unknown as WorkPolicyDocument;
     const findOneAndUpdate = jest.fn();
@@ -87,8 +87,8 @@ describe("PolicyService", () => {
     await expect(
       service.updatePolicy(
         {
-          registration_start: "2026-09-02T00:00:00.000Z",
-          registration_end: "2026-09-01T00:00:00.000Z",
+          registration_start: '2026-09-02T00:00:00.000Z',
+          registration_end: '2026-09-01T00:00:00.000Z',
         },
         user,
       ),
@@ -96,12 +96,12 @@ describe("PolicyService", () => {
     expect(findOneAndUpdate).not.toHaveBeenCalled();
   });
 
-  it("ghi cả hai đầu cửa sổ trong cùng một atomic update", async () => {
+  it('ghi cả hai đầu cửa sổ trong cùng một atomic update', async () => {
     const current = {
-      _id: "policy-id",
+      _id: 'policy-id',
       singleton_key: WORK_POLICY_SINGLETON_KEY,
-      registration_start: new Date("2026-08-01T00:00:00.000Z"),
-      registration_end: new Date("2026-09-01T00:00:00.000Z"),
+      registration_start: new Date('2026-08-01T00:00:00.000Z'),
+      registration_end: new Date('2026-09-01T00:00:00.000Z'),
       locked: false,
     } as unknown as WorkPolicyDocument;
     const updated = { ...current, locked: true } as WorkPolicyDocument;

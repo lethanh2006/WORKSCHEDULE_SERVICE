@@ -1,32 +1,32 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import {
   Schema as MongooseSchema,
   Types,
   type HydratedDocument,
-} from "mongoose";
-import type { WorkPeriod } from "./schedule-entry.schema";
+} from 'mongoose';
+import type { WorkPeriod } from './schedule-entry.schema';
 
 export type WorkRequestDocument = HydratedDocument<WorkRequest>;
 export type WorkRequestType =
-  "leave" | "late" | "early" | "overtime" | "business_trip" | "remote";
+  'leave' | 'late' | 'early' | 'overtime' | 'business_trip' | 'remote';
 export type WorkRequestStatus =
-  "pending" | "approved" | "rejected" | "cancelled";
+  'pending' | 'approved' | 'rejected' | 'cancelled';
 
-@Schema({ timestamps: true, collection: "workrequests" })
+@Schema({ timestamps: true, collection: 'workrequests' })
 export class WorkRequest {
   @Prop({ type: MongooseSchema.Types.ObjectId, required: true, index: true })
   employee_id!: Types.ObjectId;
   @Prop({
     type: String,
-    enum: ["leave", "late", "early", "overtime", "business_trip", "remote"],
+    enum: ['leave', 'late', 'early', 'overtime', 'business_trip', 'remote'],
     required: true,
     index: true,
   })
   type!: WorkRequestType;
   @Prop({
     type: String,
-    enum: ["pending", "approved", "rejected", "cancelled"],
-    default: "pending",
+    enum: ['pending', 'approved', 'rejected', 'cancelled'],
+    default: 'pending',
     required: true,
     index: true,
   })
@@ -37,8 +37,8 @@ export class WorkRequest {
   end_at?: Date;
   @Prop({
     type: String,
-    enum: ["full_day", "morning", "afternoon"],
-    default: "full_day",
+    enum: ['full_day', 'morning', 'afternoon'],
+    default: 'full_day',
     required: true,
   })
   period!: WorkPeriod;

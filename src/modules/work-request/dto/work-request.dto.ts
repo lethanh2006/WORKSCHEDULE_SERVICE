@@ -9,12 +9,12 @@ import {
   IsString,
   MaxLength,
   Min,
-} from "class-validator";
-import type { WorkPeriod } from "../../../schemas/schedule-entry.schema";
-import type { WorkRequestType } from "../../../schemas/work-request.schema";
+} from 'class-validator';
+import type { WorkPeriod } from '../../../schemas/schedule-entry.schema';
+import type { WorkRequestType } from '../../../schemas/work-request.schema';
 
 export class CreateWorkRequestDto {
-  @IsIn(["leave", "late", "early", "overtime", "business_trip", "remote"])
+  @IsIn(['leave', 'late', 'early', 'overtime', 'business_trip', 'remote'])
   type!: WorkRequestType;
 
   @IsISO8601()
@@ -24,7 +24,7 @@ export class CreateWorkRequestDto {
   @IsISO8601()
   end_at?: string;
 
-  @IsIn(["full_day", "morning", "afternoon"])
+  @IsIn(['full_day', 'morning', 'afternoon'])
   period!: WorkPeriod;
 
   @IsString()

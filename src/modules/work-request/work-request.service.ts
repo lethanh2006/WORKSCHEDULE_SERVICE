@@ -5,21 +5,21 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
-} from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import type { Model } from "mongoose";
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import type { Model } from 'mongoose';
 import {
   authenticatedUserId,
   type AuthenticatedUser,
-} from "../../common/interfaces/authenticated-user.interface";
-import type { ForwardedRequestContext } from "../../common/utils/request.util";
-import { WorkRequest } from "../../schemas/work-request.schema";
-import { normalizeWorkRequest } from "../../services/workRequestValidator";
-import { UserClientService } from "../user-client/user-client.service";
+} from '../../common/interfaces/authenticated-user.interface';
+import type { ForwardedRequestContext } from '../../common/utils/request.util';
+import { WorkRequest } from '../../schemas/work-request.schema';
+import { normalizeWorkRequest } from '../../services/workRequestValidator';
+import { UserClientService } from '../user-client/user-client.service';
 import {
   CreateWorkRequestDto,
   RejectWorkRequestDto,
-} from "./dto/work-request.dto";
+} from './dto/work-request.dto';
 
 @Injectable()
 export class WorkRequestService {
@@ -44,12 +44,12 @@ export class WorkRequestService {
         employee_id: employeeId,
         type: normalized.data.type,
         start_at: normalized.data.start_at,
-        status: { $in: ["pending", "approved"] },
+        status: { $in: ['pending', 'approved'] },
       });
       if (duplicate) {
         throw new ConflictException({
           success: false,
-          message: "Bạn đã có một đơn cùng loại vào thời gian này.",
+          message: 'Bạn đã có một đơn cùng loại vào thời gian này.',
         });
       }
       const request = await this.requests.create({
@@ -58,7 +58,7 @@ export class WorkRequestService {
       });
       return { success: true, data: request };
     } catch (error) {
-      this.rethrowOrFail(error, "Không thể tạo đơn.");
+      this.rethrowOrFail(error, 'Không thể tạo đơn.');
     }
   }
 
@@ -71,16 +71,16 @@ export class WorkRequestService {
       if (query.month && !month) {
         throw new BadRequestException({
           success: false,
-          message: "Tháng cần xem phải có định dạng YYYY-MM.",
+          message: 'Tháng cần xem phải có định dạng YYYY-MM.',
         });
       }
       if (month) filter.start_at = month;
-      if (query.type && query.type !== "all") filter.type = query.type;
-      if (query.status && query.status !== "all") filter.status = query.status;
+      if (query.type && query.type !== 'all') filter.type = query.type;
+      if (query.status && query.status !== 'all') filter.status = query.status;
       const data = await this.requests.find(filter).sort({ createdAt: -1 });
       return { success: true, count: data.length, data };
     } catch (error) {
-      this.rethrowOrFail(error, "Không thể tải lịch sử đơn.");
+      this.rethrowOrFail(error, 'Không thể tải lịch sử đơn.');
     }
   }
 
@@ -93,13 +93,13 @@ export class WorkRequestService {
       if (monthValue && !month) {
         throw new BadRequestException({
           success: false,
-          message: "Tháng cần xem phải có định dạng YYYY-MM.",
+          message: 'Tháng cần xem phải có định dạng YYYY-MM.',
         });
       }
       if (month) filter.start_at = month;
       const rows = await this.requests
         .find(filter)
-        .select("type status start_at end_at period")
+        .select('type status start_at end_at period')
         .lean();
       const byType: Record<string, number> = {};
       const approvedByType: Record<string, number> = {};
@@ -108,12 +108,12 @@ export class WorkRequestService {
       rows.forEach((row) => {
         byType[row.type] = (byType[row.type] ?? 0) + 1;
         byStatus[row.status] = (byStatus[row.status] ?? 0) + 1;
-        if (row.status === "approved") {
+        if (row.status === 'approved') {
           approvedByType[row.type] = (approvedByType[row.type] ?? 0) + 1;
         }
         if (
-          row.type === "overtime" &&
-          row.status === "approved" &&
+          row.type === 'overtime' &&
+          row.status === 'approved' &&
           row.end_at
         ) {
           overtime +=
@@ -136,7 +136,7 @@ export class WorkRequestService {
         },
       };
     } catch (error) {
-      this.rethrowOrFail(error, "Không thể tải thống kê đơn.");
+      this.rethrowOrFail(error, 'Không thể tải thống kê đơn.');
     }
   }
 
@@ -149,20 +149,20 @@ export class WorkRequestService {
       if (!request) {
         throw new NotFoundException({
           success: false,
-          message: "Không tìm thấy đơn.",
+          message: 'Không tìm thấy đơn.',
         });
       }
-      if (request.status !== "pending") {
+      if (request.status !== 'pending') {
         throw new BadRequestException({
           success: false,
-          message: "Chỉ có thể hủy đơn đang chờ duyệt.",
+          message: 'Chỉ có thể hủy đơn đang chờ duyệt.',
         });
       }
-      request.status = "cancelled";
+      request.status = 'cancelled';
       await request.save();
       return { success: true, data: request };
     } catch (error) {
-      this.rethrowOrFail(error, "Không thể hủy đơn.");
+      this.rethrowOrFail(error, 'Không thể hủy đơn.');
     }
   }
 
@@ -172,65 +172,65 @@ export class WorkRequestService {
   ) {
     try {
       const filter: Record<string, any> = {};
-      if (query.type && query.type !== "all") filter.type = query.type;
-      if (query.status && query.status !== "all") filter.status = query.status;
+      if (query.type && query.type !== 'all') filter.type = query.type;
+      if (query.status && query.status !== 'all') filter.status = query.status;
       const month = this.monthRange(query.month);
       if (month) filter.start_at = month;
       const rows = await this.requests.find(filter).sort({ createdAt: -1 });
       const data = await this.users.enrichRows(rows, context);
       return { success: true, count: data.length, data };
     } catch (error) {
-      this.rethrowOrFail(error, "Không thể tải danh sách đơn.");
+      this.rethrowOrFail(error, 'Không thể tải danh sách đơn.');
     }
   }
 
   approve(id: string, user: AuthenticatedUser) {
-    return this.review(id, undefined, user, "approved");
+    return this.review(id, undefined, user, 'approved');
   }
 
   reject(id: string, dto: RejectWorkRequestDto, user: AuthenticatedUser) {
-    return this.review(id, dto, user, "rejected");
+    return this.review(id, dto, user, 'rejected');
   }
 
   private async review(
     id: string,
     dto: RejectWorkRequestDto | undefined,
     user: AuthenticatedUser,
-    status: "approved" | "rejected",
+    status: 'approved' | 'rejected',
   ) {
     try {
       const request = await this.requests.findById(id);
-      if (!request || request.status !== "pending") {
+      if (!request || request.status !== 'pending') {
         throw new BadRequestException({
           success: false,
-          message: "Đơn không tồn tại hoặc đã được xử lý.",
+          message: 'Đơn không tồn tại hoặc đã được xử lý.',
         });
       }
-      const reason = dto?.reason?.trim() ?? "";
-      if (status === "rejected" && !reason) {
+      const reason = dto?.reason?.trim() ?? '';
+      if (status === 'rejected' && !reason) {
         throw new BadRequestException({
           success: false,
-          message: "Vui lòng nhập lý do từ chối.",
+          message: 'Vui lòng nhập lý do từ chối.',
         });
       }
       request.status = status;
       request.reviewed_by = authenticatedUserId(user);
       request.reviewed_at = new Date();
-      request.reject_reason = status === "rejected" ? reason : undefined;
+      request.reject_reason = status === 'rejected' ? reason : undefined;
       await request.save();
       return { success: true, data: request };
     } catch (error) {
       this.rethrowOrFail(
         error,
-        status === "approved"
-          ? "Không thể duyệt đơn."
-          : "Không thể từ chối đơn.",
+        status === 'approved'
+          ? 'Không thể duyệt đơn.'
+          : 'Không thể từ chối đơn.',
       );
     }
   }
 
   private monthRange(value: unknown) {
-    if (typeof value !== "string") return null;
+    if (typeof value !== 'string') return null;
     const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
     if (!match) return null;
     const year = Number(match[1]);

@@ -9,31 +9,31 @@ import {
   Query,
   Req,
   UseGuards,
-} from "@nestjs/common";
-import { Authenticated } from "../../common/decorators/authenticated.decorator";
-import { Roles } from "../../common/decorators/roles.decorator";
-import { SCHEDULE_MANAGERS } from "../../common/enums/role.enum";
-import { RolesGuard } from "../../common/guards/roles.guard";
-import type { RequestWithContext } from "../../common/interfaces/request-context.interface";
-import { forwardedRequestContext } from "../../common/utils/request.util";
+} from '@nestjs/common';
+import { Authenticated } from '../../common/decorators/authenticated.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { SCHEDULE_MANAGERS } from '../../common/enums/role.enum';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import type { RequestWithContext } from '../../common/interfaces/request-context.interface';
+import { forwardedRequestContext } from '../../common/utils/request.util';
 import {
   CreateWorkRequestDto,
   RejectWorkRequestDto,
-} from "./dto/work-request.dto";
-import { WorkRequestService } from "./work-request.service";
+} from './dto/work-request.dto';
+import { WorkRequestService } from './work-request.service';
 
-@Controller("api/workschedule/requests")
+@Controller('api/workschedule/requests')
 @UseGuards(RolesGuard)
 export class WorkRequestController {
   constructor(private readonly requests: WorkRequestService) {}
 
-  @Get("my/stats")
+  @Get('my/stats')
   @Authenticated()
-  stats(@Query("month") month: string, @Req() request: RequestWithContext) {
+  stats(@Query('month') month: string, @Req() request: RequestWithContext) {
     return this.requests.stats(month, request.user!);
   }
 
-  @Get("my")
+  @Get('my')
   @Authenticated()
   mine(
     @Query() query: Record<string, string>,
@@ -51,13 +51,13 @@ export class WorkRequestController {
     return this.requests.create(dto, request.user!);
   }
 
-  @Patch(":id/cancel")
+  @Patch(':id/cancel')
   @Authenticated()
-  cancel(@Param("id") id: string, @Req() request: RequestWithContext) {
+  cancel(@Param('id') id: string, @Req() request: RequestWithContext) {
     return this.requests.cancel(id, request.user!);
   }
 
-  @Get("admin")
+  @Get('admin')
   @Roles(...SCHEDULE_MANAGERS)
   admin(
     @Query() query: Record<string, string>,
@@ -66,18 +66,18 @@ export class WorkRequestController {
     return this.requests.getAdmin(query, forwardedRequestContext(request));
   }
 
-  @Post(":id/approve")
+  @Post(':id/approve')
   @HttpCode(200)
   @Roles(...SCHEDULE_MANAGERS)
-  approve(@Param("id") id: string, @Req() request: RequestWithContext) {
+  approve(@Param('id') id: string, @Req() request: RequestWithContext) {
     return this.requests.approve(id, request.user!);
   }
 
-  @Post(":id/reject")
+  @Post(':id/reject')
   @HttpCode(200)
   @Roles(...SCHEDULE_MANAGERS)
   reject(
-    @Param("id") id: string,
+    @Param('id') id: string,
     @Body() dto: RejectWorkRequestDto,
     @Req() request: RequestWithContext,
   ) {

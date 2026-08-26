@@ -3,21 +3,21 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-} from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { randomBytes } from "node:crypto";
-import type { Model } from "mongoose";
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { randomBytes } from 'node:crypto';
+import type { Model } from 'mongoose';
 import {
   authenticatedUserId,
   type AuthenticatedUser,
-} from "../../common/interfaces/authenticated-user.interface";
-import type { ForwardedRequestContext } from "../../common/utils/request.util";
-import { AttendanceQrToken } from "../../schemas/attendance-qr-token.schema";
-import { AttendanceRecord } from "../../schemas/attendance-record.schema";
-import { ScheduleEntry } from "../../schemas/schedule-entry.schema";
-import { ScheduleRequest } from "../../schemas/schedule-request.schema";
-import { UserClientService } from "../user-client/user-client.service";
-import { ScanAttendanceDto } from "./dto/scan-attendance.dto";
+} from '../../common/interfaces/authenticated-user.interface';
+import type { ForwardedRequestContext } from '../../common/utils/request.util';
+import { AttendanceQrToken } from '../../schemas/attendance-qr-token.schema';
+import { AttendanceRecord } from '../../schemas/attendance-record.schema';
+import { ScheduleEntry } from '../../schemas/schedule-entry.schema';
+import { ScheduleRequest } from '../../schemas/schedule-request.schema';
+import { UserClientService } from '../user-client/user-client.service';
+import { ScanAttendanceDto } from './dto/scan-attendance.dto';
 
 @Injectable()
 export class AttendanceService {
@@ -33,13 +33,13 @@ export class AttendanceService {
     try {
       const now = new Date();
       const token = await this.tokens.create({
-        token: randomBytes(32).toString("hex"),
+        token: randomBytes(32).toString('hex'),
         date: this.vietnamDate(now),
         expires_at: new Date(now.getTime() + 30_000),
       });
       return { success: true, data: token };
     } catch {
-      this.fail("Lỗi hệ thống");
+      this.fail('Lỗi hệ thống');
     }
   }
 
@@ -56,43 +56,43 @@ export class AttendanceService {
       if (!candidate) {
         throw new BadRequestException({
           success: false,
-          message: "Mã QR không hợp lệ hoặc hết hạn",
+          message: 'Mã QR không hợp lệ hoặc hết hạn',
         });
       }
 
       const requests = await this.requests.find({
         employee_id: userId,
-        status: "approved",
+        status: 'approved',
       });
       const office = await this.entries.findOne({
         request_id: { $in: requests.map((request) => request._id) },
         date: today,
-        type: "office",
+        type: 'office',
       });
       if (!office) {
         throw new BadRequestException({
           success: false,
           message:
-            "Bạn không có lịch làm việc tại văn phòng được duyệt cho ngày hôm nay",
+            'Bạn không có lịch làm việc tại văn phòng được duyệt cho ngày hôm nay',
         });
       }
 
       let record = await this.attendance.findOne({
         employee_id: userId,
         date: today,
-        source: "qr",
+        source: 'qr',
       });
       if (record?.check_out_at) {
         throw new BadRequestException({
           success: false,
-          message: "Bạn đã check-out hôm nay rồi",
+          message: 'Bạn đã check-out hôm nay rồi',
         });
       }
 
       if (this.hasUsedToken(record, candidate._id)) {
         throw new BadRequestException({
           success: false,
-          message: "Bạn đã sử dụng mã QR này để chấm công",
+          message: 'Bạn đã sử dụng mã QR này để chấm công',
         });
       }
 
@@ -103,7 +103,7 @@ export class AttendanceService {
             {
               employee_id: userId,
               date: today,
-              source: "qr",
+              source: 'qr',
               check_in_at: { $exists: false },
               check_in_token_id: { $ne: candidate._id },
               check_out_at: { $exists: false },
@@ -111,14 +111,14 @@ export class AttendanceService {
             },
             {
               $set: {
-                schedule_type: "office",
+                schedule_type: 'office',
                 check_in_at: scannedAt,
                 check_in_token_id: candidate._id,
               },
               $setOnInsert: {
                 employee_id: userId,
                 date: today,
-                source: "qr",
+                source: 'qr',
               },
             },
             {
@@ -132,7 +132,7 @@ export class AttendanceService {
           if (this.isDuplicateKeyError(error)) {
             throw new BadRequestException({
               success: false,
-              message: "Bạn đã check-in hoặc đã sử dụng mã QR này",
+              message: 'Bạn đã check-in hoặc đã sử dụng mã QR này',
             });
           }
           throw error;
@@ -140,10 +140,10 @@ export class AttendanceService {
         if (!record) {
           throw new BadRequestException({
             success: false,
-            message: "Trạng thái chấm công đã thay đổi, vui lòng thử lại",
+            message: 'Trạng thái chấm công đã thay đổi, vui lòng thử lại',
           });
         }
-        return { success: true, message: "Check-in thành công", data: record };
+        return { success: true, message: 'Check-in thành công', data: record };
       }
 
       const checkedOut = await this.attendance.findOneAndUpdate(
@@ -164,17 +164,17 @@ export class AttendanceService {
       if (!checkedOut) {
         throw new BadRequestException({
           success: false,
-          message: "Trạng thái chấm công đã thay đổi, vui lòng thử lại",
+          message: 'Trạng thái chấm công đã thay đổi, vui lòng thử lại',
         });
       }
       return {
         success: true,
-        message: "Check-out thành công",
+        message: 'Check-out thành công',
         data: checkedOut,
       };
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      this.fail("Lỗi hệ thống");
+      this.fail('Lỗi hệ thống');
     }
   }
 
@@ -190,7 +190,7 @@ export class AttendanceService {
       const data = rows.map((row) => ({ ...row.toObject(), employee: user }));
       return { success: true, count: data.length, data };
     } catch {
-      this.fail("Lỗi hệ thống");
+      this.fail('Lỗi hệ thống');
     }
   }
 
@@ -203,7 +203,7 @@ export class AttendanceService {
       const data = await this.users.enrichRows(rows, context);
       return { success: true, count: data.length, data };
     } catch {
-      this.fail("Lỗi hệ thống");
+      this.fail('Lỗi hệ thống');
     }
   }
 
@@ -223,7 +223,7 @@ export class AttendanceService {
       const data = await this.users.enrichRows(rows, context);
       return { success: true, count: data.length, data };
     } catch {
-      this.fail("Lỗi hệ thống");
+      this.fail('Lỗi hệ thống');
     }
   }
 
@@ -247,9 +247,9 @@ export class AttendanceService {
 
   private isDuplicateKeyError(error: unknown): boolean {
     return (
-      typeof error === "object" &&
+      typeof error === 'object' &&
       error !== null &&
-      "code" in error &&
+      'code' in error &&
       (error as { code?: unknown }).code === 11000
     );
   }

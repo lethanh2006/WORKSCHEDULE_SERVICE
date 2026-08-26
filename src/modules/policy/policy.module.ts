@@ -1,8 +1,8 @@
-import { Module } from "@nestjs/common";
-import { MongooseModule } from "@nestjs/mongoose";
-import { WorkPolicy, WorkPolicySchema } from "../../schemas/work-policy.schema";
-import { PolicyController } from "./policy.controller";
-import { PolicyService } from "./policy.service";
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { WorkPolicy, WorkPolicySchema } from '../../schemas/work-policy.schema';
+import { PolicyController } from './policy.controller';
+import { PolicyService } from './policy.service';
 
 @Module({
   imports: [
