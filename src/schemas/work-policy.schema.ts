@@ -4,6 +4,7 @@ import {
   Types,
   type HydratedDocument,
 } from 'mongoose';
+import { endOfVietnamMonth } from '../utils/schedule-month';
 
 export type WorkPolicyDocument = HydratedDocument<WorkPolicy>;
 export const WORK_POLICY_SINGLETON_KEY = 'default';
@@ -21,7 +22,7 @@ export class WorkPolicy {
   registration_start!: Date;
   @Prop({
     required: true,
-    default: () => new Date(Date.now() + 30 * 86_400_000),
+    default: () => endOfVietnamMonth(),
   })
   registration_end!: Date;
   @Prop({ required: true, default: true })

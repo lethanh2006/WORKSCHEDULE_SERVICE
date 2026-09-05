@@ -114,7 +114,7 @@ describe('PolicyService', () => {
     );
 
     await expect(service.updatePolicy({ locked: true }, user)).resolves.toEqual(
-      { success: true, data: updated },
+      { success: true, data: { ...updated, schedule_month: null } },
     );
     expect(findOneAndUpdate).toHaveBeenCalledWith(
       { _id: current._id, singleton_key: WORK_POLICY_SINGLETON_KEY },

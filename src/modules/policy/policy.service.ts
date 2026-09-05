@@ -15,6 +15,11 @@ import {
   type WorkPolicyDocument,
 } from '../../schemas/work-policy.schema';
 import { UpdatePolicyDto } from './dto/update-policy.dto';
+import {
+  endOfVietnamMonth,
+  policyScheduleMonth,
+  vietnamDateKey,
+} from '../../utils/schedule-month';
 
 @Injectable()
 export class PolicyService {
@@ -25,7 +30,7 @@ export class PolicyService {
 
   async getPolicy() {
     const policy = await this.getActivePolicy();
-    return { success: true, count: 1, data: policy };
+    return { success: true, count: 1, data: this.serializePolicy(policy) };
   }
 
   async updatePolicy(dto: UpdatePolicyDto, user: AuthenticatedUser) {
@@ -42,6 +47,37 @@ export class PolicyService {
         success: false,
         message: 'Thời gian kết thúc đăng ký phải sau thời gian bắt đầu.',
       });
+    }
+
+    const lockingOnly =
+      dto.locked === true &&
+      dto.registration_start === undefined &&
+      dto.registration_end === undefined;
+    if (!lockingOnly) {
+      if (
+        !policyScheduleMonth({
+          registration_start: registrationStart,
+          registration_end: registrationEnd,
+        })
+      ) {
+        throw new BadRequestException({
+          success: false,
+          message:
+            'Mỗi đợt đăng ký chỉ được nằm trong một tháng theo giờ Việt Nam.',
+        });
+      }
+      if (
+        (dto.registration_start &&
+          vietnamDateKey(registrationStart) < vietnamDateKey()) ||
+        (dto.registration_end &&
+          vietnamDateKey(registrationEnd) < vietnamDateKey()) ||
+        (dto.locked === false && registrationEnd < new Date())
+      ) {
+        throw new BadRequestException({
+          success: false,
+          message: 'Không thể mở đợt đăng ký vào ngày đã qua.',
+        });
+      }
     }
 
     const policy = await this.policyModel.findOneAndUpdate(
@@ -62,7 +98,7 @@ export class PolicyService {
         message: 'Không thể cập nhật chính sách làm việc.',
       });
     }
-    return { success: true, data: policy };
+    return { success: true, data: this.serializePolicy(policy) };
   }
 
   async getActivePolicy(): Promise<WorkPolicyDocument> {
@@ -93,7 +129,7 @@ export class PolicyService {
         $setOnInsert: {
           singleton_key: WORK_POLICY_SINGLETON_KEY,
           registration_start: now,
-          registration_end: new Date(now.getTime() + 30 * 86_400_000),
+          registration_end: endOfVietnamMonth(now),
           locked: true,
         },
       },
@@ -115,5 +151,16 @@ export class PolicyService {
       'code' in error &&
       (error as { code?: unknown }).code === 11000
     );
+  }
+
+  private serializePolicy(policy: WorkPolicyDocument) {
+    const data =
+      typeof policy.toObject === 'function' ? policy.toObject() : policy;
+    const scheduleMonth = policyScheduleMonth(policy);
+    return {
+      ...data,
+      schedule_month: scheduleMonth,
+      locked: policy.locked || !scheduleMonth,
+    };
   }
 }
