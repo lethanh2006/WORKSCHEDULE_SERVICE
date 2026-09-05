@@ -13,6 +13,8 @@ export class ScheduleRequest {
   employee_id!: Types.ObjectId;
   @Prop({ required: true })
   week_start!: Date;
+  @Prop({ type: String, match: /^[1-9]\d{3}-(0[1-9]|1[0-2])$/ })
+  month?: string;
   @Prop({
     type: String,
     enum: ['pending', 'approved', 'rejected'],
@@ -31,6 +33,6 @@ export class ScheduleRequest {
 export const ScheduleRequestSchema =
   SchemaFactory.createForClass(ScheduleRequest);
 ScheduleRequestSchema.index(
-  { employee_id: 1, week_start: 1 },
-  { unique: true },
+  { employee_id: 1, month: 1 },
+  { unique: true, partialFilterExpression: { month: { $type: 'string' } } },
 );

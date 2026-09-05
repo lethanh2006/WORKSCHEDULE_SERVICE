@@ -21,6 +21,8 @@ export class AttendanceRecord {
   check_out_at?: Date;
   @Prop({ type: String, enum: ['qr', 'schedule'], required: true })
   source!: 'qr' | 'schedule';
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'ScheduleRequest' })
+  schedule_request_id?: Types.ObjectId;
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'AttendanceQrToken' })
   check_in_token_id?: Types.ObjectId;
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'AttendanceQrToken' })

@@ -2,6 +2,13 @@ import type { AuthenticatedUser } from '../../common/interfaces/authenticated-us
 import { ScheduleService } from './schedule.service';
 
 describe('ScheduleService - thay thế lịch', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-24T03:00:00Z'));
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
   const requestId = '507f1f77bcf86cd799439011';
   const weekStart = new Date('2026-08-24T00:00:00.000Z');
   const dto = {
@@ -22,16 +29,20 @@ describe('ScheduleService - thay thế lịch', () => {
 
   function createService(entries: Record<string, jest.Mock>) {
     const requests = {
+      find: jest
+        .fn()
+        .mockReturnValue({ select: jest.fn().mockResolvedValue([]) }),
       findById: jest.fn().mockResolvedValue({
         _id: requestId,
         week_start: weekStart,
+        month: '2026-08',
         status: 'pending',
       }),
     };
 
     return new ScheduleService(
       requests as any,
-      entries as any,
+      { find: jest.fn().mockResolvedValue([]), ...entries } as any,
       {} as any,
       {} as any,
       {} as any,
@@ -128,10 +139,14 @@ describe('ScheduleService - duyệt lịch và đồng bộ chấm công', () =>
       _id: requestId,
       employee_id: employeeId,
       week_start: weekStart,
+      month: '2026-08',
       status: options?.initialStatus ?? 'pending',
     };
     const approved = { ...request, status: 'approved' };
     const requests = {
+      find: jest
+        .fn()
+        .mockReturnValue({ select: jest.fn().mockResolvedValue([]) }),
       findById: jest.fn().mockResolvedValue(request),
       findOneAndUpdate: jest.fn().mockResolvedValue(approved),
       findOne: jest.fn().mockResolvedValue(approved),
@@ -188,6 +203,7 @@ describe('ScheduleService - duyệt lịch và đồng bộ chấm công', () =>
           update: {
             $set: {
               schedule_type: 'remote',
+              schedule_request_id: requestId,
               check_in_at: expect.any(Date),
               check_out_at: expect.any(Date),
             },
@@ -265,6 +281,7 @@ describe('ScheduleService - nhân viên gửi lại lịch bị từ chối', ()
       _id: requestId,
       employee_id: employee._id,
       week_start: weekStart,
+      month: '2026-08',
       status: 'rejected',
       reject_reason: 'Cần sửa lịch',
       reviewed_by: '507f1f77bcf86cd799439023',
@@ -278,6 +295,9 @@ describe('ScheduleService - nhân viên gửi lại lịch bị từ chối', ()
       reviewed_at: undefined,
     };
     const requests = {
+      find: jest
+        .fn()
+        .mockReturnValue({ select: jest.fn().mockResolvedValue([]) }),
       findOne: jest
         .fn()
         .mockResolvedValue(
@@ -292,6 +312,7 @@ describe('ScheduleService - nhân viên gửi lại lịch bị từ chối', ()
         ),
     };
     const entries = {
+      find: jest.fn().mockResolvedValue([]),
       bulkWrite: jest.fn().mockResolvedValue({}),
       deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
     };
@@ -300,7 +321,7 @@ describe('ScheduleService - nhân viên gửi lại lịch bị từ chối', ()
         options?.policy ?? {
           locked: false,
           registration_start: new Date('2026-08-01T00:00:00.000Z'),
-          registration_end: new Date('2026-09-30T00:00:00.000Z'),
+          registration_end: new Date('2026-08-31T16:59:59.999Z'),
         },
       ),
     };
@@ -371,6 +392,7 @@ describe('ScheduleService - nhân viên gửi lại lịch bị từ chối', ()
         _id: requestId,
         employee_id: employee._id,
         week_start: weekStart,
+        month: '2026-08',
         status: 'pending',
       },
     });
@@ -387,7 +409,7 @@ describe('ScheduleService - nhân viên gửi lại lịch bị từ chối', ()
       policy: {
         locked: true,
         registration_start: new Date('2026-08-01T00:00:00.000Z'),
-        registration_end: new Date('2026-09-30T00:00:00.000Z'),
+        registration_end: new Date('2026-08-31T16:59:59.999Z'),
       },
     });
 

@@ -1,3 +1,5 @@
+import { scheduleMonthRange } from '../../../utils/schedule-month';
+
 export type ScheduleEntryInput = {
   date?: unknown;
   type?: unknown;
@@ -19,32 +21,38 @@ const toUtcDateKey = (date: Date) => date.toISOString().slice(0, 10);
 
 export const normalizeScheduleEntries = (
   entries: unknown,
-  weekStart: Date,
+  month: string,
 ): { entries?: NormalizedScheduleEntry[]; message?: string } => {
   if (!Array.isArray(entries) || entries.length === 0) {
     return { message: 'Lịch làm việc phải có ít nhất một ngày.' };
   }
 
-  if (entries.length > 7) {
-    return { message: 'Một lịch tuần không được có quá 7 ngày.' };
+  if (entries.length > 31) {
+    return { message: 'Một lịch tháng không được có quá 31 ngày.' };
   }
 
-  const start = new Date(weekStart);
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 7);
+  const range = scheduleMonthRange(month);
+  if (!range) return { message: 'Tháng đăng ký phải có định dạng YYYY-MM.' };
+  const { start, end } = range;
   const seenDates = new Set<string>();
   const normalized: NormalizedScheduleEntry[] = [];
 
   for (const rawEntry of entries as ScheduleEntryInput[]) {
-    const date = new Date(String(rawEntry?.date || ''));
-    if (Number.isNaN(date.getTime())) {
+    const inputDate = String(rawEntry?.date || '');
+    const dateKeyInput = inputDate.slice(0, 10);
+    const date = new Date(dateKeyInput);
+    if (
+      !/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(inputDate) ||
+      Number.isNaN(new Date(inputDate).getTime()) ||
+      Number.isNaN(date.getTime()) ||
+      date.toISOString().slice(0, 10) !== dateKeyInput
+    ) {
       return { message: 'Ngày làm việc không hợp lệ.' };
     }
     date.setUTCHours(0, 0, 0, 0);
 
     if (date < start || date >= end) {
-      return { message: 'Mọi ngày đăng ký phải nằm trong tuần đã chọn.' };
+      return { message: 'Mọi ngày đăng ký phải nằm trong tháng đã chọn.' };
     }
 
     const dateKey = toUtcDateKey(date);

@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  Matches,
   ValidateNested,
 } from 'class-validator';
 import type {
@@ -33,13 +34,15 @@ export class ScheduleEntryDto {
 }
 
 export class CreateScheduleRequestDto {
-  @IsNotEmpty({ message: 'week_start không được để trống' })
-  @IsDateString()
-  week_start!: string;
+  @IsString()
+  @Matches(/^[1-9]\d{3}-(0[1-9]|1[0-2])$/, {
+    message: 'Tháng đăng ký phải có định dạng YYYY-MM.',
+  })
+  month!: string;
 
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(7)
+  @ArrayMaxSize(31)
   @ValidateNested({ each: true })
   @Type(() => ScheduleEntryDto)
   entries!: ScheduleEntryDto[];
@@ -48,7 +51,7 @@ export class CreateScheduleRequestDto {
 export class UpdateScheduleEntriesDto {
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(7)
+  @ArrayMaxSize(31)
   @ValidateNested({ each: true })
   @Type(() => ScheduleEntryDto)
   entries!: ScheduleEntryDto[];
