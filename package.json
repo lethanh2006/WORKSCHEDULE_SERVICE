@@ -18,7 +18,8 @@
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage"
+    "test:cov": "jest --coverage",
+    "test:e2e": "npm run build && npm --prefix ../gateway run build && node scripts/monthly-flow.e2e.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

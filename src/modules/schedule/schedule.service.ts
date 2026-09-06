@@ -7,7 +7,7 @@ import {
   type OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Model, PipelineStage } from 'mongoose';
+import type { ClientSession, Model, PipelineStage } from 'mongoose';
 import {
   authenticatedUserId,
   type AuthenticatedUser,
@@ -51,6 +51,12 @@ export class ScheduleService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    const topology = await this.requests.db.db!.admin().command({ hello: 1 });
+    if (!topology.setName && topology.msg !== 'isdbgrid') {
+      throw new Error(
+        'WorkSchedule cần MongoDB replica set hoặc Atlas để lưu lịch và chấm công trong cùng transaction. Hãy cấu hình replicaSet trong MONGO_URL.',
+      );
+    }
     // Build the monthly uniqueness constraint before retiring the weekly one.
     // A legacy Monday request can share its date with the first of a month.
     await this.requests.collection.createIndex(
@@ -103,46 +109,54 @@ export class ScheduleService implements OnModuleInit {
 
   async create(dto: CreateScheduleRequestDto, user: AuthenticatedUser) {
     try {
-      const range = scheduleMonthRange(dto.month);
-      if (!range) {
-        throw new BadRequestException({
-          success: false,
-          message: 'Tháng đăng ký phải có định dạng YYYY-MM.',
-        });
-      }
-      const normalized = normalizeScheduleEntries(dto.entries, dto.month);
-      if (!normalized.entries) {
-        throw new BadRequestException({
-          success: false,
-          message: normalized.message,
-        });
-      }
-      const employeeId = authenticatedUserId(user);
-      const existing = await this.requests.findOne({
-        employee_id: employeeId,
-        month: dto.month,
-      });
-      if (existing) {
-        throw new BadRequestException({
-          success: false,
-          message:
-            'Bạn đã có đăng ký trong tháng này. Hãy xem trạng thái hoặc gửi lại lịch bị từ chối.',
-        });
-      }
+      return await this.withMutation(async (session) => {
+        const range = scheduleMonthRange(dto.month);
+        if (!range) {
+          throw new BadRequestException({
+            success: false,
+            message: 'Tháng đăng ký phải có định dạng YYYY-MM.',
+          });
+        }
+        const normalized = normalizeScheduleEntries(dto.entries, dto.month);
+        if (!normalized.entries) {
+          throw new BadRequestException({
+            success: false,
+            message: normalized.message,
+          });
+        }
+        const employeeId = authenticatedUserId(user);
+        const existing = await this.requests.findOne(
+          {
+            employee_id: employeeId,
+            month: dto.month,
+          },
+          null,
+          { session },
+        );
+        if (existing) {
+          throw new BadRequestException({
+            success: false,
+            message:
+              'Bạn đã có đăng ký trong tháng này. Hãy xem trạng thái hoặc gửi lại lịch bị từ chối.',
+          });
+        }
 
-      await this.validateRegistrationPolicy(dto.month);
-      await this.validatePastEntries(normalized.entries);
-      await this.validateLegacyOverlap(employeeId, normalized.entries);
+        await this.validateRegistrationPolicy(dto.month);
+        await this.validatePastEntries(normalized.entries, undefined, session);
+        await this.validateLegacyOverlap(
+          employeeId,
+          normalized.entries,
+          session,
+        );
 
-      const request = new this.requests({
-        employee_id: employeeId,
-        // Retain the legacy required field/index while monthly readers use month.
-        week_start: range.start,
-        month: dto.month,
-        status: 'pending',
-        submitted_at: new Date(),
-      });
-      try {
+        const request = new this.requests({
+          employee_id: employeeId,
+          // Retain the legacy required field/index while monthly readers use month.
+          week_start: range.start,
+          month: dto.month,
+          status: 'pending',
+          submitted_at: new Date(),
+        });
         await this.entries.insertMany(
           normalized.entries.map((entry) => ({
             request_id: request._id,
@@ -151,13 +165,11 @@ export class ScheduleService implements OnModuleInit {
             period: entry.period,
             note: entry.note,
           })),
+          { session },
         );
-        await request.save();
-      } catch (error) {
-        await this.entries.deleteMany({ request_id: request._id });
-        throw error;
-      }
-      return { success: true, data: request };
+        await request.save({ session });
+        return { success: true, data: request };
+      });
     } catch (error) {
       this.rethrowOrFail(error, 'Server Error');
     }
@@ -169,63 +181,73 @@ export class ScheduleService implements OnModuleInit {
     user: AuthenticatedUser,
   ) {
     try {
-      const employeeId = authenticatedUserId(user);
-      const request = await this.requests.findOne({
-        _id: id,
-        employee_id: employeeId,
+      return await this.withMutation(async (session) => {
+        const employeeId = authenticatedUserId(user);
+        const request = await this.requests.findOne(
+          {
+            _id: id,
+            employee_id: employeeId,
+          },
+          null,
+          { session },
+        );
+        if (!request) {
+          throw new NotFoundException({
+            success: false,
+            message: 'Schedule request not found',
+          });
+        }
+        if (request.status !== 'rejected') {
+          throw new BadRequestException({
+            success: false,
+            message: 'Chỉ có thể gửi lại lịch đã bị từ chối',
+          });
+        }
+
+        const month = this.editableRequestMonth(request);
+        const normalized = normalizeScheduleEntries(dto.entries, month);
+        if (!normalized.entries) {
+          throw new BadRequestException({
+            success: false,
+            message: normalized.message,
+          });
+        }
+        await this.validateRegistrationPolicy(month);
+        await this.validatePastEntries(normalized.entries, id, session);
+        await this.validateLegacyOverlap(
+          employeeId,
+          normalized.entries,
+          session,
+        );
+
+        await this.replaceScheduleEntries(id, normalized.entries, session);
+        const resubmitted = await this.requests.findOneAndUpdate(
+          { _id: id, employee_id: employeeId, status: 'rejected' },
+          {
+            $set: {
+              status: 'pending',
+              submitted_at: new Date(),
+            },
+            $unset: {
+              reject_reason: '',
+              reviewed_by: '',
+              reviewed_at: '',
+            },
+          },
+          { new: true, runValidators: true, session },
+        );
+        if (!resubmitted) {
+          throw new BadRequestException({
+            success: false,
+            message: 'Lịch đã được xử lý, không thể gửi lại',
+          });
+        }
+        return {
+          success: true,
+          message: 'Resubmitted successfully',
+          data: resubmitted,
+        };
       });
-      if (!request) {
-        throw new NotFoundException({
-          success: false,
-          message: 'Schedule request not found',
-        });
-      }
-      if (request.status !== 'rejected') {
-        throw new BadRequestException({
-          success: false,
-          message: 'Chỉ có thể gửi lại lịch đã bị từ chối',
-        });
-      }
-
-      const month = this.editableRequestMonth(request);
-      const normalized = normalizeScheduleEntries(dto.entries, month);
-      if (!normalized.entries) {
-        throw new BadRequestException({
-          success: false,
-          message: normalized.message,
-        });
-      }
-      await this.validateRegistrationPolicy(month);
-      await this.validatePastEntries(normalized.entries, id);
-      await this.validateLegacyOverlap(employeeId, normalized.entries);
-
-      await this.replaceScheduleEntries(id, normalized.entries);
-      const resubmitted = await this.requests.findOneAndUpdate(
-        { _id: id, employee_id: employeeId, status: 'rejected' },
-        {
-          $set: {
-            status: 'pending',
-            submitted_at: new Date(),
-          },
-          $unset: {
-            reject_reason: '',
-            reviewed_by: '',
-            reviewed_at: '',
-          },
-        },
-        { new: true, runValidators: true },
-      );
-      if (!resubmitted) {
-        throw new BadRequestException({
-          success: false,
-          message: 'Lịch đã được xử lý, không thể gửi lại',
-        });
-      }
-      return {
-        success: true,
-        message: 'Resubmitted successfully',
-        data: resubmitted,
-      };
     } catch (error) {
       this.rethrowOrFail(error, 'Server Error');
     }
@@ -250,28 +272,41 @@ export class ScheduleService implements OnModuleInit {
 
   async update(id: string, dto: UpdateScheduleEntriesDto) {
     try {
-      const request = await this.requests.findById(id);
-      if (!request) {
-        throw new NotFoundException({ success: false, message: 'Not found' });
-      }
-      const month = this.editableRequestMonth(request);
-      const normalized = normalizeScheduleEntries(dto.entries, month);
-      if (!normalized.entries) {
-        throw new BadRequestException({
-          success: false,
-          message: normalized.message,
-        });
-      }
-      await this.validatePastEntries(normalized.entries, id);
-      await this.validateLegacyOverlap(
-        String(request.employee_id),
-        normalized.entries,
-      );
-      await this.replaceScheduleEntries(id, normalized.entries);
-      if (request.status === 'approved') {
-        await this.syncScheduleAttendance(request, normalized.entries);
-      }
-      return { success: true, message: 'Updated successfully' };
+      return await this.withMutation(async (session) => {
+        const request = await this.requests.findById(id, null, { session });
+        if (!request) {
+          throw new NotFoundException({ success: false, message: 'Not found' });
+        }
+        // A write to the request serializes entry edits with review/deletion.
+        await this.requests.updateOne(
+          { _id: id },
+          { $inc: { __v: 1 } },
+          { session },
+        );
+        const month = this.editableRequestMonth(request);
+        const normalized = normalizeScheduleEntries(dto.entries, month);
+        if (!normalized.entries) {
+          throw new BadRequestException({
+            success: false,
+            message: normalized.message,
+          });
+        }
+        await this.validatePastEntries(normalized.entries, id, session);
+        await this.validateLegacyOverlap(
+          String(request.employee_id),
+          normalized.entries,
+          session,
+        );
+        await this.replaceScheduleEntries(id, normalized.entries, session);
+        if (request.status === 'approved') {
+          await this.syncScheduleAttendance(
+            request,
+            session,
+            normalized.entries,
+          );
+        }
+        return { success: true, message: 'Updated successfully' };
+      });
     } catch (error) {
       this.rethrowOrFail(error, 'Server Error');
     }
@@ -279,21 +314,26 @@ export class ScheduleService implements OnModuleInit {
 
   async remove(id: string) {
     try {
-      const request = await this.requests.findById(id);
-      if (!request)
-        throw new NotFoundException({ success: false, message: 'Not found' });
-      this.editableRequestMonth(request);
-      await this.validatePastEntries([], id);
-      await this.entries.deleteMany({ request_id: id });
-      if (request.status === 'approved') {
-        await this.attendance.deleteMany({
-          employee_id: request.employee_id,
-          source: 'schedule',
-          schedule_request_id: request._id,
-        });
-      }
-      await request.deleteOne();
-      return { success: true, message: 'Deleted successfully' };
+      return await this.withMutation(async (session) => {
+        const request = await this.requests.findById(id, null, { session });
+        if (!request)
+          throw new NotFoundException({ success: false, message: 'Not found' });
+        this.editableRequestMonth(request);
+        await this.validatePastEntries([], id, session);
+        await this.entries.deleteMany({ request_id: id }, { session });
+        if (request.status === 'approved') {
+          await this.attendance.deleteMany(
+            {
+              employee_id: request.employee_id,
+              source: 'schedule',
+              schedule_request_id: request._id,
+            },
+            { session },
+          );
+        }
+        await request.deleteOne({ session });
+        return { success: true, message: 'Deleted successfully' };
+      });
     } catch (error) {
       this.rethrowOrFail(error, 'Server Error');
     }
@@ -369,25 +409,27 @@ export class ScheduleService implements OnModuleInit {
     user: AuthenticatedUser,
   ) {
     try {
-      const request = await this.requests.findOneAndUpdate(
-        { _id: id, status: 'pending' },
-        {
-          $set: {
-            status: 'rejected',
-            reject_reason: dto.reason,
-            reviewed_by: authenticatedUserId(user),
-            reviewed_at: new Date(),
+      return await this.withMutation(async (session) => {
+        const request = await this.requests.findOneAndUpdate(
+          { _id: id, status: 'pending' },
+          {
+            $set: {
+              status: 'rejected',
+              reject_reason: dto.reason,
+              reviewed_by: authenticatedUserId(user),
+              reviewed_at: new Date(),
+            },
           },
-        },
-        { new: true, runValidators: true },
-      );
-      if (!request) {
-        throw new BadRequestException({
-          success: false,
-          message: 'Invalid or missing pending request',
-        });
-      }
-      return { success: true, message: 'Rejected successfully' };
+          { new: true, runValidators: true, session },
+        );
+        if (!request) {
+          throw new BadRequestException({
+            success: false,
+            message: 'Invalid or missing pending request',
+          });
+        }
+        return { success: true, message: 'Rejected successfully' };
+      });
     } catch (error) {
       this.rethrowOrFail(error, 'Server Error');
     }
@@ -554,33 +596,31 @@ export class ScheduleService implements OnModuleInit {
     id: string,
     reviewer: string,
   ): Promise<boolean> {
-    let request = await this.requests.findById(id);
-    if (!request || !['pending', 'approved'].includes(request.status)) {
-      return false;
-    }
+    return this.withMutation(async (session) => {
+      let request = await this.requests.findById(id, null, { session });
+      if (!request || !['pending', 'approved'].includes(request.status))
+        return false;
 
-    if (request.status === 'pending') {
-      const transitioned = await this.requests.findOneAndUpdate(
-        { _id: id, status: 'pending' },
+      request = await this.requests.findOneAndUpdate(
+        { _id: id, status: request.status },
         {
-          $set: {
-            status: 'approved',
-            reviewed_by: reviewer,
-            reviewed_at: new Date(),
-          },
+          $inc: { __v: 1 },
+          ...(request.status === 'pending'
+            ? {
+                $set: {
+                  status: 'approved',
+                  reviewed_by: reviewer,
+                  reviewed_at: new Date(),
+                },
+              }
+            : {}),
         },
-        { new: true, runValidators: true },
+        { new: true, runValidators: true, session },
       );
-      if (transitioned) {
-        request = transitioned;
-      } else {
-        request = await this.requests.findOne({ _id: id, status: 'approved' });
-        if (!request) return false;
-      }
-    }
-
-    await this.syncScheduleAttendance(request);
-    return true;
+      if (!request) return false;
+      await this.syncScheduleAttendance(request, session);
+      return true;
+    });
   }
 
   private async validateRegistrationPolicy(month: string): Promise<void> {
@@ -608,6 +648,7 @@ export class ScheduleService implements OnModuleInit {
   private async replaceScheduleEntries(
     requestId: string,
     replacement: NormalizedScheduleEntry[],
+    session: ClientSession,
   ): Promise<void> {
     await this.entries.bulkWrite(
       replacement.map((entry) => ({
@@ -625,21 +666,30 @@ export class ScheduleService implements OnModuleInit {
           upsert: true,
         },
       })),
+      { session },
     );
 
-    await this.entries.deleteMany({
-      request_id: requestId,
-      date: { $nin: replacement.map((entry) => entry.date) },
-    });
+    await this.entries.deleteMany(
+      {
+        request_id: requestId,
+        date: { $nin: replacement.map((entry) => entry.date) },
+      },
+      { session },
+    );
   }
 
   private async syncScheduleAttendance(
     request: any,
+    session: ClientSession,
     scheduleEntries?: NormalizedScheduleEntry[],
   ): Promise<void> {
     const remote = scheduleEntries
       ? scheduleEntries.filter((entry) => entry.type === 'remote')
-      : await this.entries.find({ request_id: request._id, type: 'remote' });
+      : await this.entries.find(
+          { request_id: request._id, type: 'remote' },
+          null,
+          { session },
+        );
 
     if (remote.length > 0) {
       await this.attendance.bulkWrite(
@@ -674,20 +724,24 @@ export class ScheduleService implements OnModuleInit {
             },
           };
         }),
+        { session },
       );
     }
 
     const { start, end } = this.requestDateRange(request);
-    await this.attendance.deleteMany({
-      employee_id: request.employee_id,
-      source: 'schedule',
-      schedule_request_id: request.month ? request._id : { $exists: false },
-      date: {
-        $gte: start,
-        $lt: end,
-        $nin: remote.map((entry) => entry.date),
+    await this.attendance.deleteMany(
+      {
+        employee_id: request.employee_id,
+        source: 'schedule',
+        schedule_request_id: request.month ? request._id : { $exists: false },
+        date: {
+          $gte: start,
+          $lt: end,
+          $nin: remote.map((entry) => entry.date),
+        },
       },
-    });
+      { session },
+    );
   }
 
   private remoteTimes(date: Date, period: WorkPeriod) {
@@ -756,11 +810,12 @@ export class ScheduleService implements OnModuleInit {
 
   private async validatePastEntries(
     replacement: NormalizedScheduleEntry[],
-    requestId?: string,
+    requestId: string | undefined,
+    session: ClientSession,
   ) {
     const today = vietnamDateKey();
     const current = requestId
-      ? await this.entries.find({ request_id: requestId })
+      ? await this.entries.find({ request_id: requestId }, null, { session })
       : [];
     const previous = new Map<string, any>(
       current.map((entry) => [
@@ -796,25 +851,48 @@ export class ScheduleService implements OnModuleInit {
   private async validateLegacyOverlap(
     employeeId: string,
     replacement: NormalizedScheduleEntry[],
+    session: ClientSession,
   ) {
     const legacy = await this.requests
-      .find({
-        employee_id: employeeId,
-        month: { $exists: false },
-        status: { $in: ['pending', 'approved'] },
-      })
+      .find(
+        {
+          employee_id: employeeId,
+          month: { $exists: false },
+          status: { $in: ['pending', 'approved'] },
+        },
+        null,
+        { session },
+      )
       .select('_id');
     if (legacy.length === 0) return;
-    const overlap = await this.entries.findOne({
-      request_id: { $in: legacy.map((request) => request._id) },
-      date: { $in: replacement.map((entry) => entry.date) },
-    });
+    const overlap = await this.entries.findOne(
+      {
+        request_id: { $in: legacy.map((request) => request._id) },
+        date: { $in: replacement.map((entry) => entry.date) },
+      },
+      null,
+      { session },
+    );
     if (overlap)
       throw new BadRequestException({
         success: false,
         message:
           'Có ngày đã được đăng ký trong lịch tuần cũ. Vui lòng bỏ ngày trùng trước khi gửi lịch tháng.',
       });
+  }
+
+  private async withMutation<T>(
+    action: (session: ClientSession) => Promise<T>,
+  ): Promise<T> {
+    const session = await this.requests.db.startSession();
+    try {
+      return await session.withTransaction(() => action(session), {
+        readConcern: { level: 'snapshot' },
+        writeConcern: { w: 'majority' },
+      });
+    } finally {
+      await session.endSession();
+    }
   }
 
   private rethrowOrFail(error: unknown, message: string): never {

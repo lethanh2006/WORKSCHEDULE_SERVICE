@@ -3,6 +3,21 @@ import { ScheduleService } from './schedule.service';
 import { normalizeScheduleEntries } from './utils/schedule-entry-validator';
 import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 
+function transactionDb() {
+  const session = {
+    withTransaction: jest.fn((action: () => Promise<unknown>) => action()),
+    endSession: jest.fn().mockResolvedValue(undefined),
+  };
+  return {
+    startSession: jest.fn().mockResolvedValue(session),
+    db: {
+      admin: () => ({
+        command: jest.fn().mockResolvedValue({ setName: 'rs0' }),
+      }),
+    },
+  };
+}
+
 const employee: AuthenticatedUser = {
   _id: '507f1f77bcf86cd799439011',
   role: 'user',
@@ -26,6 +41,8 @@ function harness(existingEntries: object[] = []) {
     _id: 'monthly-id',
     save,
   }));
+  requests.db = transactionDb();
+  requests.updateOne = jest.fn().mockResolvedValue({ modifiedCount: 1 });
   requests.findOne = jest.fn().mockResolvedValue(null);
   requests.find = jest
     .fn()
@@ -220,8 +237,22 @@ describe('Lịch tháng - phạm vi và ngày Việt Nam', () => {
       requests.collection.createIndex.mock.invocationCallOrder[0],
     ).toBeLessThan(requests.collection.dropIndex.mock.invocationCallOrder[0]);
   });
+  it('báo rõ cấu hình cần sửa khi MongoDB chạy standalone', async () => {
+    const { service, requests } = harness();
+    requests.db.db.admin = () => ({
+      command: jest.fn().mockResolvedValue({ isWritablePrimary: true }),
+    });
+    requests.collection = { createIndex: jest.fn() };
+    await expect(service.onModuleInit()).rejects.toThrow(
+      'MongoDB replica set hoặc Atlas',
+    );
+    expect(requests.collection.createIndex).not.toHaveBeenCalled();
+  });
+
   it('danh sách tháng trả entry của từng nhân viên cho bảng lịch admin', async () => {
     const requests = {
+      db: transactionDb(),
+      updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
       find: jest.fn().mockReturnValue({
         sort: jest.fn().mockResolvedValue([{ _id: 'a' }, { _id: 'b' }]),
       }),

@@ -1,6 +1,14 @@
 import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { ScheduleService } from './schedule.service';
 
+function transactionDb() {
+  const session = {
+    withTransaction: jest.fn((action: () => Promise<unknown>) => action()),
+    endSession: jest.fn().mockResolvedValue(undefined),
+  };
+  return { startSession: jest.fn().mockResolvedValue(session) };
+}
+
 describe('ScheduleService - thay thế lịch', () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -29,6 +37,8 @@ describe('ScheduleService - thay thế lịch', () => {
 
   function createService(entries: Record<string, jest.Mock>) {
     const requests = {
+      db: transactionDb(),
+      updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
       find: jest
         .fn()
         .mockReturnValue({ select: jest.fn().mockResolvedValue([]) }),
@@ -59,51 +69,57 @@ describe('ScheduleService - thay thế lịch', () => {
       message: 'Updated successfully',
     });
 
-    expect(bulkWrite).toHaveBeenCalledWith([
-      {
-        updateOne: {
-          filter: {
-            request_id: requestId,
-            date: new Date(dto.entries[0].date),
-          },
-          update: {
-            $set: {
-              type: 'office',
-              period: 'full_day',
-              note: 'Họp nhóm',
-            },
-            $setOnInsert: {
+    expect(bulkWrite).toHaveBeenCalledWith(
+      [
+        {
+          updateOne: {
+            filter: {
               request_id: requestId,
               date: new Date(dto.entries[0].date),
             },
+            update: {
+              $set: {
+                type: 'office',
+                period: 'full_day',
+                note: 'Họp nhóm',
+              },
+              $setOnInsert: {
+                request_id: requestId,
+                date: new Date(dto.entries[0].date),
+              },
+            },
+            upsert: true,
           },
-          upsert: true,
         },
-      },
-      {
-        updateOne: {
-          filter: {
-            request_id: requestId,
-            date: new Date(dto.entries[1].date),
-          },
-          update: {
-            $set: { type: 'remote', period: 'morning' },
-            $setOnInsert: {
+        {
+          updateOne: {
+            filter: {
               request_id: requestId,
               date: new Date(dto.entries[1].date),
             },
-            $unset: { note: '' },
+            update: {
+              $set: { type: 'remote', period: 'morning' },
+              $setOnInsert: {
+                request_id: requestId,
+                date: new Date(dto.entries[1].date),
+              },
+              $unset: { note: '' },
+            },
+            upsert: true,
           },
-          upsert: true,
+        },
+      ],
+      { session: expect.anything() },
+    );
+    expect(deleteMany).toHaveBeenCalledWith(
+      {
+        request_id: requestId,
+        date: {
+          $nin: dto.entries.map((entry) => new Date(entry.date)),
         },
       },
-    ]);
-    expect(deleteMany).toHaveBeenCalledWith({
-      request_id: requestId,
-      date: {
-        $nin: dto.entries.map((entry) => new Date(entry.date)),
-      },
-    });
+      { session: expect.anything() },
+    );
     expect(bulkWrite.mock.invocationCallOrder[0]).toBeLessThan(
       deleteMany.mock.invocationCallOrder[0],
     );
@@ -144,6 +160,8 @@ describe('ScheduleService - duyệt lịch và đồng bộ chấm công', () =>
     };
     const approved = { ...request, status: 'approved' };
     const requests = {
+      db: transactionDb(),
+      updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
       find: jest
         .fn()
         .mockReturnValue({ select: jest.fn().mockResolvedValue([]) }),
@@ -184,39 +202,43 @@ describe('ScheduleService - duyệt lịch và đồng bộ chấm công', () =>
     expect(requests.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: requestId, status: 'pending' },
       {
+        $inc: { __v: 1 },
         $set: {
           status: 'approved',
           reviewed_by: admin._id,
           reviewed_at: expect.any(Date),
         },
       },
-      { new: true, runValidators: true },
+      { new: true, runValidators: true, session: expect.anything() },
     );
-    expect(attendance.bulkWrite).toHaveBeenCalledWith([
-      {
-        updateOne: {
-          filter: {
-            employee_id: employeeId,
-            date: remoteDate,
-            source: 'schedule',
-          },
-          update: {
-            $set: {
-              schedule_type: 'remote',
-              schedule_request_id: requestId,
-              check_in_at: expect.any(Date),
-              check_out_at: expect.any(Date),
-            },
-            $setOnInsert: {
+    expect(attendance.bulkWrite).toHaveBeenCalledWith(
+      [
+        {
+          updateOne: {
+            filter: {
               employee_id: employeeId,
               date: remoteDate,
               source: 'schedule',
             },
+            update: {
+              $set: {
+                schedule_type: 'remote',
+                schedule_request_id: requestId,
+                check_in_at: expect.any(Date),
+                check_out_at: expect.any(Date),
+              },
+              $setOnInsert: {
+                employee_id: employeeId,
+                date: remoteDate,
+                source: 'schedule',
+              },
+            },
+            upsert: true,
           },
-          upsert: true,
         },
-      },
-    ]);
+      ],
+      { session: expect.anything() },
+    );
     expect(requests.findOneAndUpdate.mock.invocationCallOrder[0]).toBeLessThan(
       attendance.bulkWrite.mock.invocationCallOrder[0],
     );
@@ -239,7 +261,12 @@ describe('ScheduleService - duyệt lịch và đồng bộ chấm công', () =>
       success: true,
     });
 
-    expect(requests.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(requests.findOneAndUpdate).toHaveBeenCalledTimes(2);
+    expect(requests.findOneAndUpdate).toHaveBeenLastCalledWith(
+      { _id: requestId, status: 'approved' },
+      { $inc: { __v: 1 } },
+      { new: true, runValidators: true, session: expect.anything() },
+    );
     expect(attendance.bulkWrite).toHaveBeenCalledTimes(2);
     expect(attendance.deleteMany).toHaveBeenCalledTimes(1);
   });
@@ -295,6 +322,8 @@ describe('ScheduleService - nhân viên gửi lại lịch bị từ chối', ()
       reviewed_at: undefined,
     };
     const requests = {
+      db: transactionDb(),
+      updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
       find: jest
         .fn()
         .mockReturnValue({ select: jest.fn().mockResolvedValue([]) }),
@@ -346,10 +375,14 @@ describe('ScheduleService - nhân viên gửi lại lịch bị từ chối', ()
       data: resubmitted,
     });
 
-    expect(requests.findOne).toHaveBeenCalledWith({
-      _id: requestId,
-      employee_id: employee._id,
-    });
+    expect(requests.findOne).toHaveBeenCalledWith(
+      {
+        _id: requestId,
+        employee_id: employee._id,
+      },
+      null,
+      { session: expect.anything() },
+    );
     expect(policies.getActivePolicy).toHaveBeenCalledTimes(1);
     expect(entries.bulkWrite).toHaveBeenCalledTimes(1);
     expect(entries.deleteMany).toHaveBeenCalledTimes(1);
@@ -366,7 +399,7 @@ describe('ScheduleService - nhân viên gửi lại lịch bị từ chối', ()
           reviewed_at: '',
         },
       },
-      { new: true, runValidators: true },
+      { new: true, runValidators: true, session: expect.anything() },
     );
     expect(entries.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
       requests.findOneAndUpdate.mock.invocationCallOrder[0],
