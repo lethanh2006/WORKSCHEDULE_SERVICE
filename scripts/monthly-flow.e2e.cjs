@@ -16,6 +16,7 @@ const gatewayRoot = path.resolve(root, '../gateway');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'nrapp-monthly-e2e-'));
 const children = [];
 const secret = randomBytes(32).toString('hex');
+const tokenExpiry = Math.floor(Date.now() / 1000) + 3600;
 let mongo, fixture, container;
 
 async function freePort() {
@@ -40,12 +41,21 @@ function start(command, args, cwd, env, name) {
   child.on('error', error => { console.error(`${name}: ${error.message}`); });
   return child;
 }
+function snapshotBuild(source, name) {
+  const destination = path.join(temp, name);
+  fs.mkdirSync(destination);
+  fs.cpSync(path.join(source, 'dist'), path.join(destination, 'dist'), { recursive: true });
+  fs.symlinkSync(path.join(source, 'node_modules'), path.join(destination, 'node_modules'), 'dir');
+  return destination;
+}
 function token(user) {
   const encode = object => Buffer.from(JSON.stringify(object)).toString('base64url');
-  const data = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: user._id, role: user.role, exp: Math.floor(Date.now()/1000) + 3600 })}`;
+  const data = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: user._id, role: user.role, exp: tokenExpiry })}`;
   return `${data}.${createHmac('sha256', secret).update(data).digest('base64url')}`;
 }
 async function main() {
+  const backendBuild = snapshotBuild(root, 'workschedule-build');
+  const gatewayBuild = snapshotBuild(gatewayRoot, 'gateway-build');
   const [mongoPort, backendPort, gatewayPort, fixturePort] = await Promise.all(Array.from({length:4}, freePort));
   const uri = `mongodb://127.0.0.1:${mongoPort}/nrapp?directConnection=true`;
   if (process.env.MONGOD_BINARY) {
@@ -77,9 +87,9 @@ async function main() {
   await new Promise(resolve => fixture.listen(fixturePort,'127.0.0.1',resolve));
   const env = {...process.env, NODE_ENV:'test', LOG_FORMAT:'json', OTEL_SDK_DISABLED:'true', JWT_SECRET:secret, USER_INTERNAL_SECRET:secret, WORKSCHEDULE_INTERNAL_SECRET:secret,
     MONGO_URL:uri, AUTH_SERVICE_URL:`http://127.0.0.1:${fixturePort}`, USER_SERVICE_URL:`http://127.0.0.1:${fixturePort}`, WORKSCHEDULE_SERVICE_URL:`http://127.0.0.1:${backendPort}`};
-  start(process.execPath,['dist/main.js'],root,{...env,PORT:String(backendPort)},'workschedule');
+  start(process.execPath,['dist/main.js'],backendBuild,{...env,PORT:String(backendPort)},'workschedule');
   await waitFor(async () => (await fetch(`http://127.0.0.1:${backendPort}/health/ready`)).ok, 'Work schedule ready');
-  start(process.execPath,['dist/main.js'],gatewayRoot,{...env,PORT:String(gatewayPort)},'gateway');
+  start(process.execPath,['dist/main.js'],gatewayBuild,{...env,PORT:String(gatewayPort)},'gateway');
   await waitFor(async () => (await fetch(`http://127.0.0.1:${gatewayPort}/health`)).ok, 'Gateway ready');
   const base = `http://127.0.0.1:${gatewayPort}/api/workschedule`;
   async function call(method, endpoint, user = users[0], body, expected) {
