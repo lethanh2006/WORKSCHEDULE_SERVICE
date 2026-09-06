@@ -29,3 +29,15 @@ npm test -- --runInBand
 npm run build
 npm run lint
 ```
+
+### Kiểm tra tích hợp luồng tháng
+
+```bash
+npm run test:e2e
+```
+
+Cần cài dependency của cả `workschedule` và `gateway`, cùng Docker đang chạy. Lệnh tự build hai dịch vụ, khởi tạo MongoDB replica set tạm bằng image `mongo:7.0`, rồi gọi HTTP qua Gateway. Có thể dùng `MONGOD_BINARY=/đường/dẫn/mongod npm run test:e2e` nếu đã cài MongoDB trên máy.
+
+Bài kiểm tra dùng database, cổng và tài khoản giả lập riêng; không đọc `.env` của dịch vụ và không ghi vào dữ liệu đang sử dụng. Gateway và WorkSchedule chạy thật; xác thực và danh bạ dùng HTTP fixture. Container MongoDB cùng các tiến trình kiểm tra được dừng khi hoàn tất. Nếu lỗi, đường dẫn nhật ký trong thư mục tạm được in ra để chẩn đoán.
+
+Các tình huống gồm phân quyền mở đợt, chặn khoảng ngày vắt tháng, lịch sai tháng/ngày quá khứ, đăng ký trùng, gửi lại đồng thời, duyệt và sửa đồng thời, đồng bộ chấm công từ xa, tổng hợp tháng, giữ lịch tuần cũ và khóa đăng ký. Bản build được sao chép sang thư mục tạm để tiến trình phát triển tự biên dịch lại không xóa file dịch vụ đang kiểm tra.
