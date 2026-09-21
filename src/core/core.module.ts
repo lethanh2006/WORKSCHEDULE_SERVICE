@@ -1,12 +1,14 @@
 import { Global, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
-import { GlobalExceptionFilter } from '../common/filters/global-exception.filter';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { RequestIdMiddleware } from '../common/middleware/request-id.middleware';
-import { StructuredLoggerService } from '../common/observability/structured-logger.service';
-import { TelemetryLifecycleService } from '../common/observability/telemetry-lifecycle.service';
-import { GatewaySignatureService } from '../common/security/gateway-signature.service';
+import { GatewaySignatureService } from '../common/gateway-signature.service';
+import { GlobalExceptionFilter } from '../common/global-exception.filter';
+import {
+  StructuredLoggerService,
+  TelemetryLifecycleService,
+} from '../common/observability';
+import { RequestIdMiddleware } from '../common/request-id.middleware';
+import { RolesGuard } from '../common/roles.guard';
 
 @Global()
 @Module({

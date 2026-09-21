@@ -1,10 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, type OnApplicationShutdown } from '@nestjs/common';
 import {
+  createAppLogger,
+  flushLoggerAndShutdownTelemetry,
   handleOriginHttpException,
   type HttpBoundaryContext,
   type HttpBoundaryResult,
+  PinoNestLogger,
 } from '@nrapp/observability';
-import { appLogger } from './app-logger';
+
+export const appLogger: ReturnType<typeof createAppLogger> = createAppLogger({
+  serviceName: 'workschedule',
+});
+
+export const nestLogger = new PinoNestLogger(appLogger, 'Workschedule');
 
 export type LogDetails = Record<string, unknown>;
 
@@ -34,5 +42,12 @@ export class StructuredLoggerService {
     context: HttpBoundaryContext,
   ): HttpBoundaryResult {
     return handleOriginHttpException(this.logger, exception, context);
+  }
+}
+
+@Injectable()
+export class TelemetryLifecycleService implements OnApplicationShutdown {
+  async onApplicationShutdown(): Promise<void> {
+    await flushLoggerAndShutdownTelemetry(appLogger, 3_000);
   }
 }

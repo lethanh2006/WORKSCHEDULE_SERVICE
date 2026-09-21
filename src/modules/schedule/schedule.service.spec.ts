@@ -1,4 +1,4 @@
-import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import type { AuthenticatedUser } from '../../common/auth';
 import { ScheduleService } from './schedule.service';
 
 function transactionDb() {

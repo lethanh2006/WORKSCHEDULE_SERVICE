@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { ScheduleService } from './schedule.service';
 import { normalizeScheduleEntries } from './utils/schedule-entry-validator';
-import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import type { AuthenticatedUser } from '../../common/auth';
 
 function transactionDb() {
   const session = {

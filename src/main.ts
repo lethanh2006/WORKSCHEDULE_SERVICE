@@ -8,7 +8,7 @@ import {
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { appLogger, nestLogger } from './common/observability/app-logger';
+import { appLogger, nestLogger } from './common/observability';
 
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 

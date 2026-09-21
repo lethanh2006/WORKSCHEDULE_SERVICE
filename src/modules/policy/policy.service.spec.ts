@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { Model } from 'mongoose';
-import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import type { AuthenticatedUser } from '../../common/auth';
 import {
   WORK_POLICY_SINGLETON_KEY,
   type WorkPolicyDocument,

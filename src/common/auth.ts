@@ -1,4 +1,14 @@
+import { SetMetadata } from '@nestjs/common';
 import type { Request } from 'express';
+
+export enum Role {
+  ADMIN = 'admin',
+  MANAGER = 'manager',
+  CHEF = 'chef',
+  USER = 'user',
+}
+
+export const SCHEDULE_MANAGERS = [Role.ADMIN, Role.MANAGER, Role.CHEF];
 
 export interface AuthenticatedUser extends Record<string, unknown> {
   _id?: string;
@@ -25,3 +35,8 @@ export function parseAuthenticatedUser(
 export function authenticatedUserId(user: AuthenticatedUser): string {
   return String(user._id ?? user.id);
 }
+
+export const AUTHENTICATED_KEY = 'authenticated';
+export const ROLES_KEY = 'roles';
+export const Authenticated = () => SetMetadata(AUTHENTICATED_KEY, true);
+export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
