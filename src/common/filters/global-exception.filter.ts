@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { normalizeRouteTemplate } from '@nrapp/observability';
-import { StructuredLoggerService } from './observability';
-import type { RequestWithContext } from './request-context';
+import { StructuredLoggerService } from '../logging/logger';
+import type { RequestWithContext } from '../interfaces/request-context.interface';
 
 @Catch()
 @Injectable()

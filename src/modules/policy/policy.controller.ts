@@ -1,7 +1,8 @@
 import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
-import { Role, Roles } from '../../common/auth';
-import type { RequestWithContext } from '../../common/request-context';
-import { RolesGuard } from '../../common/roles.guard';
+import { Role } from '../../common/enums/role.enum';
+import { Roles } from '../../common/decorators/roles.decorator';
+import type { RequestWithContext } from '../../common/interfaces/request-context.interface';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { UpdatePolicyDto } from './dto/update-policy.dto';
 import { PolicyService } from './policy.service';
 

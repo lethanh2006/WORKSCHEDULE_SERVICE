@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'node:crypto';
-import type { ForwardedRequestContext } from '../../common/request.util';
+import type { ForwardedRequestContext } from '../../common/utils/request.util';
 
 const DIRECTORY_PATH = '/api/user/user/all';
 const FORBIDDEN_INTERNAL_SECRETS = new Set([

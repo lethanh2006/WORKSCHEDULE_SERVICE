@@ -8,10 +8,12 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { Authenticated, Roles, SCHEDULE_MANAGERS } from '../../common/auth';
-import type { RequestWithContext } from '../../common/request-context';
-import { forwardedRequestContext } from '../../common/request.util';
-import { RolesGuard } from '../../common/roles.guard';
+import { Authenticated } from '../../common/decorators/authenticated.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { SCHEDULE_MANAGERS } from '../../common/enums/role.enum';
+import type { RequestWithContext } from '../../common/interfaces/request-context.interface';
+import { forwardedRequestContext } from '../../common/utils/request.util';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { AttendanceService } from './attendance.service';
 import { ScanAttendanceDto } from './dto/scan-attendance.dto';
 

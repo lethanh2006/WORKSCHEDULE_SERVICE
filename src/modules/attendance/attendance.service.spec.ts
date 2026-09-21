@@ -1,4 +1,4 @@
-import type { AuthenticatedUser } from '../../common/auth';
+import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { AttendanceService } from './attendance.service';
 
 describe('AttendanceService - QR dùng chung theo từng nhân viên', () => {

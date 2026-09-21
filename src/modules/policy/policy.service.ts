@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
-import { authenticatedUserId, type AuthenticatedUser } from '../../common/auth';
+import { authenticatedUserId } from '../../common/utils/authenticated-user.util';
+import { type AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import {
   WorkPolicy,
   WORK_POLICY_SINGLETON_KEY,

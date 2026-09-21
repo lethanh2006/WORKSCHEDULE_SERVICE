@@ -8,8 +8,9 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
-import { authenticatedUserId, type AuthenticatedUser } from '../../common/auth';
-import type { ForwardedRequestContext } from '../../common/request.util';
+import { authenticatedUserId } from '../../common/utils/authenticated-user.util';
+import { type AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import type { ForwardedRequestContext } from '../../common/utils/request.util';
 import { WorkRequest } from '../../schemas/work-request.schema';
 import { UserClientService } from '../user-client/user-client.service';
 import {

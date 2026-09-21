@@ -85,7 +85,7 @@ async function main() {
     else { response.statusCode=404; response.end('{}'); }
   });
   await new Promise(resolve => fixture.listen(fixturePort,'127.0.0.1',resolve));
-  const env = {...process.env, NODE_ENV:'test', LOG_FORMAT:'json', OTEL_SDK_DISABLED:'true', JWT_SECRET:secret, USER_INTERNAL_SECRET:secret, WORKSCHEDULE_INTERNAL_SECRET:secret,
+  const env = {...process.env, NODE_ENV:'test', LOG_FORMAT:'json', JWT_SECRET:secret, USER_INTERNAL_SECRET:secret, WORKSCHEDULE_INTERNAL_SECRET:secret,
     MONGO_URL:uri, AUTH_SERVICE_URL:`http://127.0.0.1:${fixturePort}`, USER_SERVICE_URL:`http://127.0.0.1:${fixturePort}`, WORKSCHEDULE_SERVICE_URL:`http://127.0.0.1:${backendPort}`};
   start(process.execPath,['dist/main.js'],backendBuild,{...env,PORT:String(backendPort)},'workschedule');
   await waitFor(async () => (await fetch(`http://127.0.0.1:${backendPort}/health/ready`)).ok, 'Work schedule ready');

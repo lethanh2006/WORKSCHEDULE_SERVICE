@@ -1,5 +1,5 @@
-import type { AuthenticatedUser } from '../../common/auth';
-import type { RequestWithContext } from '../../common/request-context';
+import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import type { RequestWithContext } from '../../common/interfaces/request-context.interface';
 import { ScheduleController } from './schedule.controller';
 
 describe('ScheduleController - gửi lại lịch', () => {

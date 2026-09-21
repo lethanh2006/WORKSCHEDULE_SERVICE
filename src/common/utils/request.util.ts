@@ -1,4 +1,4 @@
-import type { RequestWithContext } from './request-context';
+import type { RequestWithContext } from '../interfaces/request-context.interface';
 
 export interface ForwardedRequestContext {
   requestId: string;

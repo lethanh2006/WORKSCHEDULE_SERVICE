@@ -1,4 +1,4 @@
-import type { RequestWithAuthenticatedUser } from './auth';
+import type { RequestWithAuthenticatedUser } from './authenticated-user.interface';
 
 export interface RequestContext {
   requestId: string;
