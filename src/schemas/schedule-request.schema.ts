@@ -36,3 +36,5 @@ ScheduleRequestSchema.index(
   { employee_id: 1, month: 1 },
   { unique: true, partialFilterExpression: { month: { $type: 'string' } } },
 );
+ScheduleRequestSchema.index({ employee_id: 1, week_start: -1 });
+ScheduleRequestSchema.index({ status: 1, submitted_at: 1 });

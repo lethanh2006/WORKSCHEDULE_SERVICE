@@ -65,4 +65,5 @@ export class WorkRequest {
 }
 export const WorkRequestSchema = SchemaFactory.createForClass(WorkRequest);
 WorkRequestSchema.index({ employee_id: 1, start_at: -1 });
+WorkRequestSchema.index({ employee_id: 1, createdAt: -1 });
 WorkRequestSchema.index({ status: 1, createdAt: -1 });
