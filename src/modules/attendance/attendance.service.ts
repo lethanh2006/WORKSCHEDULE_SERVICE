@@ -184,8 +184,13 @@ export class AttendanceService {
         if (query.from) filter.date.$gte = new Date(query.from);
         if (query.to) filter.date.$lte = new Date(query.to);
       }
-      const rows = await this.attendance.find(filter).sort({ date: -1 });
-      const data = rows.map((row) => ({ ...row.toObject(), employee: user }));
+      const rows = await this.attendance
+        .find(filter)
+        .sort({ date: -1 })
+        .limit(100)
+        .lean()
+        .exec();
+      const data = rows.map((row) => ({ ...row, employee: user }));
       return { success: true, count: data.length, data };
     } catch {
       this.fail('Lỗi hệ thống');

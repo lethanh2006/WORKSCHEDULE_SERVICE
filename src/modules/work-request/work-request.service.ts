@@ -75,7 +75,12 @@ export class WorkRequestService {
       if (month) filter.start_at = month;
       if (query.type && query.type !== 'all') filter.type = query.type;
       if (query.status && query.status !== 'all') filter.status = query.status;
-      const data = await this.requests.find(filter).sort({ createdAt: -1 });
+      const data = await this.requests
+        .find(filter)
+        .sort({ start_at: -1, createdAt: -1 })
+        .limit(100)
+        .lean()
+        .exec();
       return { success: true, count: data.length, data };
     } catch (error) {
       this.rethrowOrFail(error, 'Không thể tải lịch sử đơn.');
