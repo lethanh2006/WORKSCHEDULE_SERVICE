@@ -9,6 +9,100 @@ function transactionDb() {
   return { startSession: jest.fn().mockResolvedValue(session) };
 }
 
+describe('ScheduleService - lịch cá nhân', () => {
+  it('đọc requests và entries theo batch, không phụ thuộc User Service', async () => {
+    const employeeId = '507f1f77bcf86cd799439012';
+    const firstRequestId = '507f1f77bcf86cd799439021';
+    const secondRequestId = '507f1f77bcf86cd799439022';
+    const requestRows = [
+      {
+        _id: firstRequestId,
+        employee_id: employeeId,
+        week_start: new Date('2026-09-01T00:00:00.000Z'),
+        month: '2026-09',
+        status: 'pending',
+      },
+      {
+        _id: secondRequestId,
+        employee_id: employeeId,
+        week_start: new Date('2026-08-25T00:00:00.000Z'),
+        status: 'approved',
+      },
+    ];
+    const entryRows = [
+      {
+        _id: '507f1f77bcf86cd799439031',
+        request_id: firstRequestId,
+        date: new Date('2026-09-02T00:00:00.000Z'),
+        type: 'office',
+      },
+      {
+        _id: '507f1f77bcf86cd799439032',
+        request_id: secondRequestId,
+        date: new Date('2026-08-26T00:00:00.000Z'),
+        type: 'remote',
+      },
+    ];
+    const requestLean = jest.fn().mockResolvedValue(requestRows);
+    const requestSort = jest.fn().mockReturnValue({ lean: requestLean });
+    const requests = {
+      find: jest.fn().mockReturnValue({ sort: requestSort }),
+    };
+    const entryLean = jest.fn().mockResolvedValue(entryRows);
+    const entrySort = jest.fn().mockReturnValue({ lean: entryLean });
+    const entries = {
+      find: jest.fn().mockReturnValue({ sort: entrySort }),
+    };
+    const users = { enrichOne: jest.fn() };
+    const service = new ScheduleService(
+      requests as any,
+      entries as any,
+      {} as any,
+      users as any,
+      {} as any,
+    );
+
+    await expect(
+      service.getMine({}, { _id: employeeId, role: 'user' }),
+    ).resolves.toEqual({
+      success: true,
+      data: [
+        { ...requestRows[0], entries: [entryRows[0]] },
+        { ...requestRows[1], entries: [entryRows[1]] },
+      ],
+    });
+    expect(requests.find).toHaveBeenCalledWith({ employee_id: employeeId });
+    expect(requestSort).toHaveBeenCalledWith({ week_start: -1 });
+    expect(entries.find).toHaveBeenCalledWith({
+      request_id: { $in: [firstRequestId, secondRequestId] },
+    });
+    expect(entrySort).toHaveBeenCalledWith({ date: 1 });
+    expect(users.enrichOne).not.toHaveBeenCalled();
+  });
+
+  it('không query entries khi người dùng chưa có lịch', async () => {
+    const requestLean = jest.fn().mockResolvedValue([]);
+    const requests = {
+      find: jest.fn().mockReturnValue({
+        sort: jest.fn().mockReturnValue({ lean: requestLean }),
+      }),
+    };
+    const entries = { find: jest.fn() };
+    const service = new ScheduleService(
+      requests as any,
+      entries as any,
+      {} as any,
+      { enrichOne: jest.fn() } as any,
+      {} as any,
+    );
+
+    await expect(
+      service.getMine({}, { _id: '507f1f77bcf86cd799439012', role: 'user' }),
+    ).resolves.toEqual({ success: true, data: [] });
+    expect(entries.find).not.toHaveBeenCalled();
+  });
+});
+
 describe('ScheduleService - thay thế lịch', () => {
   beforeEach(() => {
     jest.useFakeTimers();

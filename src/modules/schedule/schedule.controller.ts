@@ -98,11 +98,7 @@ export class ScheduleController {
     @Query() query: Record<string, string>,
     @Req() request: RequestWithContext,
   ) {
-    return this.schedules.getMine(
-      query,
-      request.user!,
-      forwardedRequestContext(request),
-    );
+    return this.schedules.getMine(query, request.user!);
   }
 
   @Post('schedule/requests')

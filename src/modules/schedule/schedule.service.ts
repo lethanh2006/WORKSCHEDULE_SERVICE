@@ -78,11 +78,7 @@ export class ScheduleService implements OnModuleInit {
     }
   }
 
-  async getMine(
-    query: Record<string, string>,
-    user: AuthenticatedUser,
-    context: ForwardedRequestContext,
-  ) {
+  async getMine(query: Record<string, string>, user: AuthenticatedUser) {
     try {
       const filter: any = {
         employee_id: authenticatedUserId(user),
@@ -90,15 +86,28 @@ export class ScheduleService implements OnModuleInit {
       };
       const requests = await this.requests
         .find(filter)
-        .sort({ week_start: -1 });
-      const data: any[] = [];
-      for (const scheduleRequest of requests) {
-        const entries = await this.entries.find({
-          request_id: scheduleRequest._id,
-        });
-        const enriched = await this.users.enrichOne(scheduleRequest, context);
-        data.push({ ...enriched, entries });
+        .sort({ week_start: -1 })
+        .lean();
+      if (requests.length === 0) return { success: true, data: [] };
+
+      // Đây là dữ liệu của chính người đang đăng nhập nên không cần gọi User
+      // Service để enrich lại hồ sơ. Đọc entries theo batch cũng loại bỏ N+1
+      // query khi tài khoản đã có nhiều lịch tuần/tháng cũ.
+      const entries = await this.entries
+        .find({ request_id: { $in: requests.map((request) => request._id) } })
+        .sort({ date: 1 })
+        .lean();
+      const entriesByRequest = new Map<string, any[]>();
+      for (const entry of entries) {
+        const key = String(entry.request_id);
+        const group = entriesByRequest.get(key) ?? [];
+        group.push(entry);
+        entriesByRequest.set(key, group);
       }
+      const data = requests.map((request) => ({
+        ...request,
+        entries: entriesByRequest.get(String(request._id)) ?? [],
+      }));
       return { success: true, data };
     } catch (error) {
       this.rethrowOrFail(error, 'Server Error');
